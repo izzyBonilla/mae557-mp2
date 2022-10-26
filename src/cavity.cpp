@@ -45,18 +45,28 @@ int main(int argc, char* argv[]) {
   U.y_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
   U.et = MatrixXd::Constant(integ.ngx,integ.ngy,et_i);
 
-  //init_quants(flow,integ,U);
+  // flow quant rhs vectors
+  MatrixXd f_rho = MatrixXd::Zero(integ.ngx,integ.ngy);
+  MatrixXd f_x_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
+  MatrixXd f_y_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
+  MatrixXd f_et = MatrixXd::Zero(integ.ngx,integ.ngy);
 
-  std::cout << U.et << std::endl;
+  rho_rhs(integ,U,f_rho);
 
   return 0;
 }
 
-int rho_step(struct integParams integ, struct flowQuant U) {
+int rho_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f) {
   // given the integrator parameters and required quantities, take
   // one timestep of the momentum equation
 
-  
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      f(k,l) =
+        (U.x_mom(k+1,l)-U.x_mom(k-1,l))/(2*integ.dx) +
+        (U.y_mom(k,l+1)-U.y_mom(k,l-1))/(2*integ.dy);
+    }
+  }
 
   return 0;
 }

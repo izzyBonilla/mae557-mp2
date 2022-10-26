@@ -31,7 +31,7 @@ struct flowQuant {
   Eigen::MatrixXd et;
 };
 
-int rho_step(struct integParams integ, struct flowQuant U);
+int rho_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f);
 
 int stress(struct flowParams flow, struct integParams integ, struct flowQuant U, int i, int j);
 
