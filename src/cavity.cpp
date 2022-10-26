@@ -71,8 +71,26 @@ int rho_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f) {
   return 0;
 }
 
-int stress(struct flowParams flow, struct integParams integ, struct flowQuant q, int i, int j) {
+int sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig) {
+  // compute 1-direction principal stresses on k,l grid
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      double u = U.x_mom(k,l)/U.rho(k,l);
+      double v = U.y_mom(k,l)/U.rho(k,l);
+    }
+    sig(k,k) -= pressure(flow,rho,et,u,v);
+  }
+  return 0;
+}
 
+int sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig) {
+  // compute 2-direction principal stresses on k,l grid
+  return 0;
+}
+
+int sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig) {
+  // compute off-diagonall stresses on k,l grid 
+  // note sigma_12 = sigma_21
   return 0;
 }
 

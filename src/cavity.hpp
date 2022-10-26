@@ -32,8 +32,13 @@ struct flowQuant {
 };
 
 int rho_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f);
+int x_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f);
+int y_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f);
+int et_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f);
 
-int stress(struct flowParams flow, struct integParams integ, struct flowQuant U, int i, int j);
+int sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig);
+int sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig);
+int sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig);
 
 double pressure(struct flowParams flow, const int rho, const int et, const int u, const int v);
 
