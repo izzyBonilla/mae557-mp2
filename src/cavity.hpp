@@ -31,6 +31,9 @@ struct integParams {
 
 struct flowQuant {
   Eigen::MatrixXd rho;
+  Eigen::MatrixXd sig1;
+  Eigen::MatrixXd sig2;
+  Eigen::MatrixXd sig_off;
   Eigen::MatrixXd x_mom;
   Eigen::MatrixXd y_mom;
   Eigen::MatrixXd et;
@@ -41,9 +44,9 @@ Eigen::MatrixXd x_rhs(struct integParams integ, struct flowQuant U);
 Eigen::MatrixXd y_rhs(struct integParams integ, struct flowQuant U);
 Eigen::MatrixXd et_rhs(struct integParams integ, struct flowQuant U);
 
-int sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig);
-int sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig);
-int sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig);
+Eigen::MatrixXd sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U);
 
 double pressure(struct flowParams flow, const int rho, const int et, const int u, const int v);
 

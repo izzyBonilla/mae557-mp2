@@ -100,37 +100,18 @@ Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U) {
   return f;
 }
 
-int sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig) {
+Eigen::MatrixXd sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute 1-direction principal stresses on k,l grid
-  double u;
-  double v; // store velocity to calculate pressure
-  
-  for(int k = 1; k < integ.ngx-1; ++k) {
-    for(int l = 1; l < integ.ngy-1; ++l) {
-    }
-    u = U.x_mom(k,k)/U.rho(k,k);
-    v = U.y_mom(k,k)/U.rho(k,k);
-    sig(k,k) -= pressure(flow,U.rho(k,k),U.et(k,k),u,v);
-  }
   return 0;
 }
 
-int sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig) {
+Eigen::MatrixXd sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute 2-direction principal stresses on k,l grid
-  double u;
-  double v; // store velocity to calculate pressure
-  
-  for(int k = 1; k < integ.ngx-1; ++k) {
-    for(int l = 1; l < integ.ngy-1; ++l) {
-    }
-    u = U.x_mom(k,k)/U.rho(k,k);
-    v = U.y_mom(k,k)/U.rho(k,k);
-    sig(k,k) -= pressure(flow,U.rho(k,k),U.et(k,k),u,v);
-  }
+
   return 0;
 }
 
-int sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig) {
+Eigen::MatrixXd sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute off-diagonall stresses on k,l grid 
   // note sigma_12 = sigma_21
   return 0;
