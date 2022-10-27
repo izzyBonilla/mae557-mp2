@@ -31,18 +31,21 @@ struct integParams {
 
 struct flowQuant {
   Eigen::MatrixXd rho;
-  Eigen::MatrixXd sig1;
-  Eigen::MatrixXd sig2;
-  Eigen::MatrixXd sig_off;
   Eigen::MatrixXd x_mom;
   Eigen::MatrixXd y_mom;
   Eigen::MatrixXd et;
 };
 
+struct Stress {
+  Eigen::MatrixXd sig1;
+  Eigen::MatrixXd sig2;
+  Eigen::MatrixXd sig_off;
+};
+
 Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd x_rhs(struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd y_rhs(struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd et_rhs(struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
+Eigen::MatrixXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
+Eigen::MatrixXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 
 Eigen::MatrixXd sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U);
 Eigen::MatrixXd sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U);

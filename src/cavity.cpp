@@ -16,6 +16,7 @@ int main(int argc, char* argv[]) {
   struct flowParams flow;
   struct integParams integ;
   struct flowQuant U;
+  struct Stress S;
 
   if(argc == 5) {
     // request commandline input for Ma, square gridspacing, time steps,
@@ -70,6 +71,11 @@ int main(int argc, char* argv[]) {
   U.y_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
   U.et = MatrixXd::Constant(integ.ngx,integ.ngy,et_i);
 
+  // stresses
+  S.sig1 = MatrixXd::Zero(integ.ngx,integ.ngy);
+  S.sig2 = MatrixXd::Zero(integ.ngx,integ.ngy);
+  S.sig_off = MatrixXd::Zero(integ.ngx,integ.ngx);
+
   // flow quant rhs vectors
   MatrixXd f_rho = MatrixXd::Zero(integ.ngx,integ.ngy);
   MatrixXd f_x_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
@@ -79,10 +85,18 @@ int main(int argc, char* argv[]) {
   // first step of the lid
 
   for(int l = 1; l < integ.ngy-1; ++l) {
-    U.x_mom(1,l) = flow.uw*sin(flow.omega*integ.dt);
+    U.x_mom(integ.ngx-2,l) = flow.uw*sin(flow.omega*integ.dt);
   }
 
   f_rho = rho_rhs(integ,U);
+
+  S.sig1 = sig_diag1(flow,integ, U);
+  S.sig2 = sig_diag2(flow,integ, U);
+  S.sig_off = sig_off(integ, U);
+
+  f_x_mom = x_rhs(integ, U);
+  f_y_mom = y_rhs(integ, U);
+  f_et = et_rhs(integ, U);
 
   std::cout << U.x_mom << std::endl << std::endl << f_rho << std::endl;
 
@@ -101,8 +115,24 @@ Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U) {
 }
 
 Eigen::MatrixXd sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U) {
-  // compute 1-direction principal stresses on k,l grid
-  return 0;
+  // compute 1-direction principal stresses on k,l half grid
+  // grid 0 is
+
+  MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+  double up;
+  double ud;
+  double vp;
+  double vd;
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      up = (U.x_mom(k+1,l)/U.rho(k+1,l)+U.x_mom(k,l)/U.rho(k,l)); // u_(k+1/2,l)
+      ud = (U.x_mom(k,l)/U.rho(k,l)+U.x_mom(k-1,l)/U.rho(k-1,l));
+      sigma(k,l) = 0;
+    }
+  }
+
+  return sigma;
 }
 
 Eigen::MatrixXd sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U) {
