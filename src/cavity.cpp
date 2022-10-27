@@ -7,6 +7,7 @@
 #define NGHOST 2
 #define PI 100000 // 1 bar, initial pressure
 #define TI 300 // K, initial temp
+#define LI 1
 
 using Eigen::MatrixXd;
 
@@ -16,24 +17,48 @@ int main(int argc, char* argv[]) {
   struct integParams integ;
   struct flowQuant U;
 
-  double tFinal = 1; // just a guess
-  double L = 1; // TODO: MAKE THIS VARIABLE FOR FUTURE VARIATIONS IN MACH NUMBER
+  if(argc == 5) {
+    // request commandline input for Ma, square gridspacing, time steps,
+    // and non-dimensional final time
+    flow.ma = atof(argv[1]);
+    integ.nx = atoi(argv[2]);
+    integ.ny = atoi(argv[2]);
+    integ.nt = atoi(argv[3]); 
+    flow.to = atof(argv[4]);
+  } else {
+    flow.ma = 0.25;
+    integ.nx = 3;
+    integ.ny = 3;
+    integ.nt = 10;
+    flow.to = 10;
+  }
 
   // set up flow parameters
   flow.re = 100;    // Reynolds
-  flow.ma = 0.25;   // Mach
   flow.pr = 0.7;    // Prandtl
   flow.gamma = 1.4; // cp/cv
-  flow.nu = 0.1;    // kinematic viscosity
   flow.R = 287;     // gas const
-  flow.uw = 1;
-
+  flow.uw = flow.ma*sqrt(flow.R*flow.gamma*TI); // wall velocity
+  flow.nu = flow.uw*LI/flow.re;                // kinematic viscosity
+  flow.L = flow.nu*flow.re/flow.uw;           //! REVISIT LENGTH
+  flow.omega = 2*flow.nu/(pow(flow.L,2));    // frequency
 
   // set up integrator parameters
-  integ.nx = 3;
-  integ.ny = 3;
   integ.ngx = integ.nx + NGHOST;
   integ.ngy = integ.ny + NGHOST;
+  integ.tf = flow.to/flow.omega;
+  integ.dx = flow.L/integ.nx;
+  integ.dy = flow.L/integ.ny;
+  integ.dt = integ.tf/integ.nt;
+  integ.cd = MatrixXd::Zero(integ.ngx,integ.ngy);
+
+  // Central Difference Operator
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    integ.cd(k,k-1) = -1;
+    integ.cd(k,k+1) = 1;
+  }
+  integ.cd(1,0) = 0;
+  integ.cd(integ.ngx-2,integ.ngx-1) = 0;
 
   // caluculate initial density and total energy
   double rho_i = PI/(flow.R*TI);
@@ -51,40 +76,57 @@ int main(int argc, char* argv[]) {
   MatrixXd f_y_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
   MatrixXd f_et = MatrixXd::Zero(integ.ngx,integ.ngy);
 
-  rho_rhs(integ,U,f_rho);
+  // first step of the lid
+
+  for(int l = 1; l < integ.ngy-1; ++l) {
+    U.x_mom(1,l) = flow.uw*sin(flow.omega*integ.dt);
+  }
+
+  f_rho = rho_rhs(integ,U);
+
+  std::cout << U.x_mom << std::endl << std::endl << f_rho << std::endl;
 
   return 0;
 }
 
-int rho_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f) {
+Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U) {
   // given the integrator parameters and required quantities, take
   // one timestep of the momentum equation
 
-  for(int k = 1; k < integ.ngx-1; ++k) {
-    for(int l = 1; l < integ.ngy-1; ++l) {
-      f(k,l) =
-        (U.x_mom(k+1,l)-U.x_mom(k-1,l))/(2*integ.dx) +
-        (U.y_mom(k,l+1)-U.y_mom(k,l-1))/(2*integ.dy);
-    }
-  }
+  MatrixXd f = MatrixXd::Zero(integ.ngx,integ.ngy);
 
-  return 0;
+  f = -(integ.cd*(U.x_mom/(2*integ.dx)+U.y_mom/(2*integ.dx)));
+
+  return f;
 }
 
 int sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig) {
   // compute 1-direction principal stresses on k,l grid
+  double u;
+  double v; // store velocity to calculate pressure
+  
   for(int k = 1; k < integ.ngx-1; ++k) {
     for(int l = 1; l < integ.ngy-1; ++l) {
-      double u = U.x_mom(k,l)/U.rho(k,l);
-      double v = U.y_mom(k,l)/U.rho(k,l);
     }
-    sig(k,k) -= pressure(flow,rho,et,u,v);
+    u = U.x_mom(k,k)/U.rho(k,k);
+    v = U.y_mom(k,k)/U.rho(k,k);
+    sig(k,k) -= pressure(flow,U.rho(k,k),U.et(k,k),u,v);
   }
   return 0;
 }
 
 int sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig) {
   // compute 2-direction principal stresses on k,l grid
+  double u;
+  double v; // store velocity to calculate pressure
+  
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+    }
+    u = U.x_mom(k,k)/U.rho(k,k);
+    v = U.y_mom(k,k)/U.rho(k,k);
+    sig(k,k) -= pressure(flow,U.rho(k,k),U.et(k,k),u,v);
+  }
   return 0;
 }
 

@@ -8,9 +8,12 @@ struct flowParams {
   double ma;
   double pr;
   double gamma;
-  double nu;
   double R;
   double uw;
+  double nu;
+  double L;
+  double omega;
+  double to;
 };
 
 struct integParams {
@@ -19,9 +22,11 @@ struct integParams {
   int ngx;
   int ngy;
   int nt;
+  double tf;
   double dx;
   double dy;
   double dt;
+  Eigen::MatrixXd cd;
 };
 
 struct flowQuant {
@@ -31,10 +36,10 @@ struct flowQuant {
   Eigen::MatrixXd et;
 };
 
-int rho_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f);
-int x_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f);
-int y_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f);
-int et_rhs(struct integParams integ, struct flowQuant U, Eigen::MatrixXd f);
+Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd x_rhs(struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd y_rhs(struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd et_rhs(struct integParams integ, struct flowQuant U);
 
 int sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig);
 int sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U, Eigen::MatrixXd sig);
