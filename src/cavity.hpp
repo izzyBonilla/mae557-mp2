@@ -37,9 +37,10 @@ struct flowQuant {
 };
 
 struct Stress {
-  Eigen::MatrixXd sig1;
-  Eigen::MatrixXd sig2;
-  Eigen::MatrixXd sig_off;
+  Eigen::MatrixXd sig11;
+  Eigen::MatrixXd sig22;
+  Eigen::MatrixXd sig12;
+  Eigen::MatrixXd sig21;
 };
 
 Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U);
@@ -47,10 +48,13 @@ Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct f
 Eigen::MatrixXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 Eigen::MatrixXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 
-Eigen::MatrixXd sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd sig12(struct flowParams flow, struct integParams integ, struct flowQuant U);
 
-double pressure(struct flowParams flow, struct flowQuant U, int k, int l, double u, double v);
+double pressure(struct flowParams flow, double et, double u, double v);
+
+double interp2(const double q1, const double q2);
+double interp4(const double q1, const double q2, const double q3, const double q4);
 
 #endif // CAVITY_HPP_

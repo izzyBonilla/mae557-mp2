@@ -73,9 +73,10 @@ int main(int argc, char* argv[]) {
   U.et = MatrixXd::Constant(integ.ngx,integ.ngy,et_i);
 
   // stresses
-  S.sig1 = MatrixXd::Zero(integ.ngx,integ.ngy);
-  S.sig2 = MatrixXd::Zero(integ.ngx,integ.ngy);
-  S.sig_off = MatrixXd::Zero(integ.ngx,integ.ngx);
+  S.sig11 = MatrixXd::Zero(integ.ngx,integ.ngy);
+  S.sig22 = MatrixXd::Zero(integ.ngx,integ.ngy);
+  S.sig12 = MatrixXd::Zero(integ.ngx,integ.ngx);
+  S.sig21 = MatrixXd::Zero(integ.ngx,integ.ngx);
 
   // flow quant rhs vectors
   MatrixXd f_rho = MatrixXd::Zero(integ.ngx,integ.ngy);
@@ -84,14 +85,19 @@ int main(int argc, char* argv[]) {
   MatrixXd f_et = MatrixXd::Zero(integ.ngx,integ.ngy);
 
   // first step of the lid
+  // note convention: x direction is increasing with column index
+  // note convention: y direction is increasing with row index
 
-  for(int l = 1; l < integ.ngy-1; ++l) {
-    U.x_mom(integ.ngx-2,l) = flow.uw*sin(flow.omega*integ.dt);
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    U.x_mom(k,integ.ngy-2) = flow.uw*sin(flow.omega*integ.dt);
   }
 
   f_rho = rho_rhs(integ,U);
 
-  S.sig1 = sig_diag1(flow,integ, U);
+  S.sig11 = sig11(flow,integ, U);
+  S.sig22 = sig22(flow,integ, U);
+
+  std::cout << U.x_mom << std::endl << S.sig11 << std::endl;
   // S.sig2 = sig_diag2(flow,integ, U);
   // S.sig_off = sig_off(flow, integ, U);
 
@@ -109,34 +115,75 @@ Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U) {
   return f;
 }
 
-Eigen::MatrixXd sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U) {
-  // compute 1-direction principal stresses on k,l grid returning
-  // sigma11_(k+1/2,l)-sigma11_(k-1/2,l)
+Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U) {
+  // compute 1-direction principal stresses on k,l grid
+  // using the following scheme: every k,l index pair corresponds
+  // to the stress at the western boundary; i-e sigma(1,1) corresponds to
+  // sigma(1/2,1)
 
   MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
   ArrayXXd u = U.x_mom.array()/U.rho.array(); // get u velocity field
   ArrayXXd v = U.y_mom.array()/U.rho.array(); // get v velocity field
 
   double press; // placeholder for pressure term
+  double mu;    // placeholder for dynamic viscosity term
+  double et_w;
+  double rho_w;
+  double u_w;
+  double v_nw;
+  double v_sw;
 
-  for(int k = 1; k < integ.ngx-1; ++k) {
+  for(int k = 1; k < integ.ngx; ++k) {
     for(int l = 1; l < integ.ngy-1; ++l) {
-      
+      rho_w = interp2(U.rho(k,l),U.rho(k-1,l));
+      et_w = interp2(U.et(k,l),U.et(k-1,l));
+      mu = rho_w*flow.nu; // mu at half gridpoint
+      u_w = interp2(u(k,l),u(k-1,l)); // western u velocity
+      press = pressure(flow,et_w,u_w,v(k,l));
+      v_nw = interp4(v(k-1,l+1),v(k-1,l),v(k,l+1),v(k,l));
+      v_sw = interp4(v(k-1,l),v(k-1,l-1),v(k,l),v(k,l-1));
+      sigma(k,l) = mu*((4/(3*integ.dx))*(u(k,l)-u(k-1,l))-(2/(3*integ.dx))*(v_nw-v_sw)) - press;
     }
   }
 
   return sigma;
 }
 
-Eigen::MatrixXd sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U) {
+Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute 2-direction principal stresses on k,l grid
+  // using the following scheme: every k,l index pair corresponds
+  // to the stress at the southern boundary; i-e sigma(1,1) corresponds to
+  // sigma(1,1/2)
 
   MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd u = U.x_mom.array()/U.rho.array(); // get u velocity field
+  ArrayXXd v = U.y_mom.array()/U.rho.array(); // get v velocity field
+
+  double press; // placeholder for pressure term
+  double mu;    // placeholder for dynamic viscosity term
+  double et_w;
+  double rho_w;
+  double v_s;
+  double u_sw;
+  double u_se;
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy; ++l) {
+      rho_w = interp2(U.rho(k,l),U.rho(k,l-1));
+      et_w = interp2(U.et(k,l),U.et(k,l-1));
+      mu = rho_w*flow.nu; // mu at half gridpoint
+      v_s = interp2(v(k,l),v(k,l-1)); // southern v velocity
+      press = pressure(flow,et_w,v_s,u(k,l));
+      u_sw = interp4(u(k,l),u(k,l-1),u(k-1,l-1),u(k-1,l));
+      u_se = interp4(u(k,l),u(k+1,l),u(k+1,l-1),u(k,l-1));
+      sigma(k,l) = mu*((4/(3*integ.dx))*(u(k,l)-u(k-1,l))-(2/(3*integ.dx))*(u_sw-u_se)) - press;
+    }
+  }
 
   return sigma;
 }
 
-Eigen::MatrixXd sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U) {
+Eigen::MatrixXd sig12(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute off-diagonall stresses on k,l grid 
   // note sigma_12 = sigma_21
 
@@ -145,12 +192,22 @@ Eigen::MatrixXd sig_off(struct flowParams flow, struct integParams integ, struct
   return sigma;
 }
 
-double pressure(struct flowParams flow, struct flowQuant U, int k, int l, double u, double v) {
+
+double pressure(struct flowParams flow, double et, double u, double v) {
   /* calculate pressure given a density and total energy via EOS
   p=rhoRT
   */
 
-  double mag = 0.5*(u*u+v*v);
+  double p;
 
-  double et_w
+  return p;
+
+}
+
+double interp2(const double q1, const double q2) {
+  return (q1+q2)/2;
+}
+
+double interp4(const double q1, const double q2, const double q3, const double q4) {
+  return (q1+q2+q3+q4)/4;
 }
