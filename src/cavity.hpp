@@ -40,7 +40,6 @@ struct Stress {
   Eigen::MatrixXd sig11;
   Eigen::MatrixXd sig22;
   Eigen::MatrixXd sig12;
-  Eigen::MatrixXd sig21;
 };
 
 Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U);

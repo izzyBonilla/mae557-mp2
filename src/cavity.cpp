@@ -76,7 +76,6 @@ int main(int argc, char* argv[]) {
   S.sig11 = MatrixXd::Zero(integ.ngx,integ.ngy);
   S.sig22 = MatrixXd::Zero(integ.ngx,integ.ngy);
   S.sig12 = MatrixXd::Zero(integ.ngx,integ.ngx);
-  S.sig21 = MatrixXd::Zero(integ.ngx,integ.ngx);
 
   // flow quant rhs vectors
   MatrixXd f_rho = MatrixXd::Zero(integ.ngx,integ.ngy);
