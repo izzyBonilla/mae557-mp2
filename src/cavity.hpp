@@ -51,6 +51,6 @@ Eigen::MatrixXd sig_diag1(struct flowParams flow, struct integParams integ, stru
 Eigen::MatrixXd sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U);
 Eigen::MatrixXd sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U);
 
-double pressure(struct flowParams flow, const int rho, const int et, const int u, const int v);
+double pressure(struct flowParams flow, struct flowQuant U, int k, int l, double u, double v);
 
 #endif // CAVITY_HPP_

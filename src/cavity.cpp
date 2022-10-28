@@ -10,6 +10,7 @@
 #define LI 1
 
 using Eigen::MatrixXd;
+using Eigen::ArrayXXd;
 
 int main(int argc, char* argv[]) {  
 
@@ -91,14 +92,8 @@ int main(int argc, char* argv[]) {
   f_rho = rho_rhs(integ,U);
 
   S.sig1 = sig_diag1(flow,integ, U);
-  S.sig2 = sig_diag2(flow,integ, U);
-  S.sig_off = sig_off(integ, U);
-
-  f_x_mom = x_rhs(integ, U);
-  f_y_mom = y_rhs(integ, U);
-  f_et = et_rhs(integ, U);
-
-  std::cout << U.x_mom << std::endl << std::endl << f_rho << std::endl;
+  // S.sig2 = sig_diag2(flow,integ, U);
+  // S.sig_off = sig_off(flow, integ, U);
 
   return 0;
 }
@@ -115,20 +110,18 @@ Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U) {
 }
 
 Eigen::MatrixXd sig_diag1(struct flowParams flow, struct integParams integ, struct flowQuant U) {
-  // compute 1-direction principal stresses on k,l half grid
-  // grid 0 is
+  // compute 1-direction principal stresses on k,l grid returning
+  // sigma11_(k+1/2,l)-sigma11_(k-1/2,l)
 
   MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
-  double up;
-  double ud;
-  double vp;
-  double vd;
+  ArrayXXd u = U.x_mom.array()/U.rho.array(); // get u velocity field
+  ArrayXXd v = U.y_mom.array()/U.rho.array(); // get v velocity field
+
+  double press; // placeholder for pressure term
 
   for(int k = 1; k < integ.ngx-1; ++k) {
     for(int l = 1; l < integ.ngy-1; ++l) {
-      up = (U.x_mom(k+1,l)/U.rho(k+1,l)+U.x_mom(k,l)/U.rho(k,l)); // u_(k+1/2,l)
-      ud = (U.x_mom(k,l)/U.rho(k,l)+U.x_mom(k-1,l)/U.rho(k-1,l));
-      sigma(k,l) = 0;
+      
     }
   }
 
@@ -138,21 +131,26 @@ Eigen::MatrixXd sig_diag1(struct flowParams flow, struct integParams integ, stru
 Eigen::MatrixXd sig_diag2(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute 2-direction principal stresses on k,l grid
 
-  return 0;
+  MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+
+  return sigma;
 }
 
 Eigen::MatrixXd sig_off(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute off-diagonall stresses on k,l grid 
   // note sigma_12 = sigma_21
-  return 0;
+
+  MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+
+  return sigma;
 }
 
-double pressure(struct flowParams flow, const int rho, const int et, const int u, const int v) {
+double pressure(struct flowParams flow, struct flowQuant U, int k, int l, double u, double v) {
   /* calculate pressure given a density and total energy via EOS
   p=rhoRT
   */
 
   double mag = 0.5*(u*u+v*v);
 
-  return rho*(et-mag)/(flow.gamma-1);
+  double et_w
 }
