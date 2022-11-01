@@ -75,7 +75,8 @@ int main(int argc, char* argv[]) {
   // stresses
   S.sig11 = MatrixXd::Zero(integ.ngx,integ.ngy);
   S.sig22 = MatrixXd::Zero(integ.ngx,integ.ngy);
-  S.sig12 = MatrixXd::Zero(integ.ngx,integ.ngx);
+  S.south = MatrixXd::Zero(integ.ngx,integ.ngy);
+  S.west = MatrixXd::Zero(integ.ngx,integ.ngy);
 
   // flow quant rhs vectors
   MatrixXd f_rho = MatrixXd::Zero(integ.ngx,integ.ngy);
@@ -95,8 +96,10 @@ int main(int argc, char* argv[]) {
 
   S.sig11 = sig11(flow,integ, U);
   S.sig22 = sig22(flow,integ, U);
+  S.south = sig_south(flow,integ,U);
+  S.west = sig_west(flow,integ,U);
 
-  std::cout << U.x_mom << std::endl << S.sig11 << std::endl;
+  std::cout << U.x_mom << std::endl << S.sig12 << std::endl;
   // S.sig2 = sig_diag2(flow,integ, U);
   // S.sig_off = sig_off(flow, integ, U);
 
@@ -113,6 +116,8 @@ Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U) {
 
   return f;
 }
+
+Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 
 Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute 1-direction principal stresses on k,l grid
@@ -160,19 +165,19 @@ Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct f
 
   double press; // placeholder for pressure term
   double mu;    // placeholder for dynamic viscosity term
-  double et_w;
-  double rho_w;
-  double v_s;
-  double u_sw;
-  double u_se;
+  double et_s;  // interpolated total energy at southern border
+  double rho_s; // interpolated density at southern border
+  double v_s;   // interpolated v velocity at southern border
+  double u_sw;  // interpolated u velocity at southwestern corner
+  double u_se;  // interpolated u velocity at southeastern corner
 
   for(int k = 1; k < integ.ngx-1; ++k) {
     for(int l = 1; l < integ.ngy; ++l) {
-      rho_w = interp2(U.rho(k,l),U.rho(k,l-1));
-      et_w = interp2(U.et(k,l),U.et(k,l-1));
-      mu = rho_w*flow.nu; // mu at half gridpoint
+      rho_s = interp2(U.rho(k,l),U.rho(k,l-1));
+      et_s = interp2(U.et(k,l),U.et(k,l-1));
+      mu = rho_s*flow.nu; // mu at half gridpoint
       v_s = interp2(v(k,l),v(k,l-1)); // southern v velocity
-      press = pressure(flow,et_w,v_s,u(k,l));
+      press = pressure(flow,et_s,v_s,u(k,l));
       u_sw = interp4(u(k,l),u(k,l-1),u(k-1,l-1),u(k-1,l));
       u_se = interp4(u(k,l),u(k+1,l),u(k+1,l-1),u(k,l-1));
       sigma(k,l) = mu*((4/(3*integ.dx))*(u(k,l)-u(k-1,l))-(2/(3*integ.dx))*(u_sw-u_se)) - press;
@@ -182,11 +187,54 @@ Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct f
   return sigma;
 }
 
-Eigen::MatrixXd sig12(struct flowParams flow, struct integParams integ, struct flowQuant U) {
+Eigen::MatrixXd sig_south(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute off-diagonall stresses on k,l grid 
   // note sigma_12 = sigma_21
 
   MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd u = U.x_mom.array()/U.rho.array();
+  ArrayXXd v = U.y_mom.array()/U.rho.array();
+  
+  double rho_s;
+  double mu;
+  double v_sw;
+  double v_se;
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy; ++l) {
+      rho_s = interp2(U.rho(k,l),U.rho(k,l-1)); // interpolate density
+      mu = rho_s*flow.nu; // calculate mu at this gridpoint
+      v_sw = interp4(v(k,l),v(k-1,l),v(k-1,l-1),v(k,l-1)); // interpolate
+      v_se = interp4(v(k,l),v(k+1,l),v(k+1,l-1),v(k,l-1)); // corner velocities
+
+      // now integrate
+      sigma(k,l) = mu*((u(k,l)-u(k,l-1))/integ.dy + (v_se-v_sw)/integ.dx);
+    }
+  }
+
+  return sigma;
+}
+
+Eigen::MatrixXd sig_west(struct flowParams flow, struct integParams integ, struct flowQuant U) {
+  MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd u = U.x_mom.array()/U.rho.array();
+  ArrayXXd v = U.y_mom.array()/U.rho.array();
+
+  double rho_w;
+  double mu;
+  double u_nw;
+  double u_sw;
+
+  for(int k = 1; k < integ.ngx; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      rho_w = interp2(U.rho(k,l),U.rho(k-1,l));
+      mu = rho_w*flow.nu;
+      u_nw = interp4(u(k,l),u(k-1,l),u(k-1,l+1),u(k,l+1));
+      u_sw = interp4(u(k,l),u(k,l-1),u(k-1,l-1),u(k-1,l));
+
+      sigma(k,l) = mu*((u_nw-u_sw)/integ.dy+(v(k,l)-v(k-1,l))/integ.dx);
+    }
+  }
 
   return sigma;
 }

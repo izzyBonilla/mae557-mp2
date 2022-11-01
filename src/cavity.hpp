@@ -39,7 +39,8 @@ struct flowQuant {
 struct Stress {
   Eigen::MatrixXd sig11;
   Eigen::MatrixXd sig22;
-  Eigen::MatrixXd sig12;
+  Eigen::MatrixXd south;
+  Eigen::MatrixXd west;
 };
 
 Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U);
@@ -49,7 +50,8 @@ Eigen::MatrixXd et_rhs(struct flowParams flow, struct integParams integ, struct 
 
 Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U);
 Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd sig12(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd sig_south(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::MatrixXd sig_west(struct flowParams flow, struct integParams integ, struct flowQuant U);
 
 double pressure(struct flowParams flow, double et, double u, double v);
 
