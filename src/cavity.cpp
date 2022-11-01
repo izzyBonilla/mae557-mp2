@@ -100,8 +100,9 @@ int main(int argc, char* argv[]) {
   S.west = sig_west(flow,integ,U);
 
   f_x_mom = x_rhs(flow,integ,U,S);
+  f_y_mom = y_rhs(flow,integ,U,S);
 
-  std::cout << U.u << std::endl << f_x_mom << std::endl;
+  std::cout << U.u << std::endl << f_y_mom << std::endl;
   // S.sig2 = sig_diag2(flow,integ, U);
   // S.sig_off = sig_off(flow, integ, U);
 
@@ -126,7 +127,21 @@ Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct f
     for(int l = 1; l < integ.ngy-1; ++l) {
       f(k,l) = (S.sig11(k+1,l)-S.sig11(k,l))/integ.dx + (S.south(k,l+1)-S.south(k,l))/integ.dy -
                (U.rho(k+1,l)*pow(U.u(k+1,l),2)-U.rho(k-1,l)*pow(U.u(k-1,l),2))/(2*integ.dx) -
-               (U.rho(k+1,l)*U.u(k+1,l)*U.v(k+1,l)-U.rho(k-1,l)*U.u(k-1,l)*U.v(k-1,l))/(2*integ.dy);              
+               (U.rho(k,l+1)*U.u(k,l+1)*U.v(k,l+1)-U.rho(k,l-1)*U.u(k,l-1)*U.v(k,l-1))/(2*integ.dy);              
+    }
+  }
+
+  return f;
+}
+
+Eigen::MatrixXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+  MatrixXd f = MatrixXd::Zero(integ.ngx,integ.ngy);
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      f(k,l) = (S.west(k+1,l)-S.west(k,l))/integ.dx + (S.sig22(k,l+1)-S.sig22(k,l))/integ.dy -
+               (U.rho(k+1,l)*U.u(k+1,l)*U.v(k+1,l)-U.rho(k-1,l)*U.u(k-1,l)*U.v(k-1,l))/(2*integ.dx) -
+               (U.rho(k,l+1)*pow(U.v(k,l+1),2)-U.rho(k,l-1)*pow(U.v(k,l-1),2))/(2*integ.dy);
     }
   }
 
