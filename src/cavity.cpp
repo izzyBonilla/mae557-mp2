@@ -99,7 +99,9 @@ int main(int argc, char* argv[]) {
   S.south = sig_south(flow,integ,U);
   S.west = sig_west(flow,integ,U);
 
-  std::cout << U.u << std::endl << S.south << std::endl;
+  f_x_mom = x_rhs(flow,integ,U,S);
+
+  std::cout << U.u << std::endl << f_x_mom << std::endl;
   // S.sig2 = sig_diag2(flow,integ, U);
   // S.sig_off = sig_off(flow, integ, U);
 
@@ -117,7 +119,19 @@ Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U) {
   return f;
 }
 
-Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
+Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+  MatrixXd f = MatrixXd::Zero(integ.ngx,integ.ngy);
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      f(k,l) = (S.sig11(k+1,l)-S.sig11(k,l))/integ.dx + (S.south(k,l+1)-S.south(k,l))/integ.dy -
+               (U.rho(k+1,l)*pow(U.u(k+1,l),2)-U.rho(k-1,l)*pow(U.u(k-1,l),2))/(2*integ.dx) -
+               (U.rho(k+1,l)*U.u(k+1,l)*U.v(k+1,l)-U.rho(k-1,l)*U.u(k-1,l)*U.v(k-1,l))/(2*integ.dy);              
+    }
+  }
+
+  return f;
+}
 
 Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute 1-direction principal stresses on k,l grid
