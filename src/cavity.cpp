@@ -44,6 +44,7 @@ int main(int argc, char* argv[]) {
   flow.nu = flow.uw*LI/flow.re;                // kinematic viscosity
   flow.L = flow.nu*flow.re/flow.uw;           //! REVISIT LENGTH
   flow.omega = 2*flow.nu/(pow(flow.L,2));    // frequency
+  flow.cp = flow.gamma/(1-flow.gamma)*flow.R;
 
   // set up integrator parameters
   integ.ngx = integ.nx + NGHOST;
@@ -148,6 +149,60 @@ Eigen::MatrixXd y_rhs(struct flowParams flow, struct integParams integ, struct f
   return f;
 }
 
+Eigen::MatrixXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+
+  MatrixXd f = MatrixXd::Zero(integ.ngx,integ.ngy);
+
+  struct Interps u_i;
+  struct Interps v_i;
+  struct Interps lambda;
+
+  double Tkp;
+  double Tkm;
+  double Tc;
+  double Tlp;
+  double Tlm;
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      
+
+      // collect interpolated velocities
+      u_i.east = interp2(U.u(k,l),U.u(k+1,l));
+      u_i.north = interp2(U.u(k,l),U.u(k,l+1));
+      u_i.south = interp2(U.u(k,l),U.u(k,l-1));
+      u_i.west = interp2(U.u(k,l),U.u(k-1,l));
+
+      v_i.east = interp2(U.v(k,l),U.v(k+1,l));
+      v_i.north = interp2(U.v(k,l),U.v(k,l+1));
+      v_i.south = interp2(U.v(k,l),U.v(k,l-1));
+      v_i.west = interp2(U.v(k,l),U.v(k-1,l));
+
+      lambda.east = interp2(U.rho(k,l),U.rho(k+1,l))*flow.cp*flow.nu/flow.pr;
+      lambda.north = interp2(U.rho(k,l),U.rho(k,l+1))*flow.cp*flow.nu/flow.pr;
+      lambda.south = interp2(U.rho(k,l),U.rho(k,l-1))*flow.cp*flow.nu/flow.pr;
+      lambda.west = interp2(U.rho(k,l),U.rho(k-1,l))*flow.cp*flow.nu/flow.pr;
+
+      Tkp = RT(flow,U.et(k+1,l),U.u(k+1,l),U.v(k+1,l));
+      Tkm = RT(flow,U.et(k-1,l),U.u(k-1,l),U.v(k-1,l));
+      Tc = RT(flow,U.et(k,l),U.u(k,l),U.v(k,l));
+      Tlp = RT(flow,U.et(k,l+1),U.u(k,l+1),U.v(k,l+1));
+      Tlm = RT(flow,U.et(k,l-1),U.u(k,l-1),U.v(k,l-1));
+
+
+      f(k,l) = 
+        (S.sig11(k+1,l)*u_i.east+S.west(k+1,l)*v_i.east-S.sig11(k,l)*u_i.west+S.west(k,l)*v_i.west)/integ.dx +
+        (S.south(k,l+1)*u_i.north+S.sig22(k,l+1)*v_i.north-S.south(k,l)*u_i.south+S.sig22(k,l)*v_i.south)/integ.dy +
+        (Tkp*lambda.east-Tc*lambda.west-Tc*lambda.east+Tkm*lambda.south)/(integ.dx*integ.dx) +
+        (Tlp*lambda.north - Tc*lambda.south - Tc*lambda.north + Tlm*lambda.south)/(integ.dy*integ.dy) -
+        (U.rho(k+1,l)*U.u(k+1,l)*U.et(k+1,l)-U.rho(k-1,l)*U.u(k-1,l)*U.et(k-1,l))/(2*integ.dx) -
+        (U.rho(k,l+1)*U.u(k,l+1)*U.et(k,l+1)-U.rho(k,l-1)*U.u(k,l-1)*U.et(k,l-1))/(2*integ.dy);
+    }
+  }
+
+  return f;
+}
+
 Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute 1-direction principal stresses on k,l grid
   // using the following scheme: every k,l index pair corresponds
@@ -170,7 +225,7 @@ Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct f
       et_w = interp2(U.et(k,l),U.et(k-1,l));
       mu = rho_w*flow.nu; // mu at half gridpoint
       u_w = interp2(U.u(k,l),U.u(k-1,l)); // western u velocity
-      press = pressure(flow,et_w,u_w,U.v(k,l));
+      press = rho_w*RT(flow,et_w,u_w,U.v(k,l));
       v_nw = interp4(U.v(k-1,l+1),U.v(k-1,l),U.v(k,l+1),U.v(k,l));
       v_sw = interp4(U.v(k-1,l),U.v(k-1,l-1),U.v(k,l),U.v(k,l-1));
       sigma(k,l) = mu*((4/(3*integ.dx))*(U.u(k,l)-U.u(k-1,l))-(2/(3*integ.dx))*(v_nw-v_sw)) - press;
@@ -202,7 +257,7 @@ Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct f
       et_s = interp2(U.et(k,l),U.et(k,l-1));
       mu = rho_s*flow.nu; // mu at half gridpoint
       v_s = interp2(U.v(k,l),U.v(k,l-1)); // southern v velocity
-      press = pressure(flow,et_s,v_s,U.u(k,l));
+      press = rho_s*RT(flow,et_s,v_s,U.u(k,l));
       u_sw = interp4(U.u(k,l),U.u(k,l-1),U.u(k-1,l-1),U.u(k-1,l));
       u_se = interp4(U.u(k,l),U.u(k+1,l),U.u(k+1,l-1),U.u(k,l-1));
       sigma(k,l) = mu*((4/(3*integ.dx))*(U.u(k,l)-U.u(k-1,l))-(2/(3*integ.dx))*(u_sw-u_se)) - press;
@@ -261,16 +316,9 @@ Eigen::MatrixXd sig_west(struct flowParams flow, struct integParams integ, struc
   return sigma;
 }
 
-
-double pressure(struct flowParams flow, double et, double u, double v) {
-  /* calculate pressure given a density and total energy via EOS
-  p=rhoRT
-  */
-
-  double p;
-
-  return p;
-
+double RT(struct flowParams, flow, double et, double u, double v) {
+  // return the value of RT from total energy and velocity
+  return (et-0.5*(u*u+v*v))*(flow.gamma-1);
 }
 
 double interp2(const double q1, const double q2) {

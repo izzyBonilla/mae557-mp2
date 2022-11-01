@@ -13,6 +13,7 @@ struct flowParams {
   double nu;
   double L;
   double omega;
+  double cp;
   double to;
 };
 
@@ -43,6 +44,13 @@ struct Stress {
   Eigen::MatrixXd west;
 };
 
+struct Interps {
+  double east;
+  double west;
+  double south;
+  double north;
+}
+
 Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U);
 Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 Eigen::MatrixXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
@@ -53,7 +61,7 @@ Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct f
 Eigen::MatrixXd sig_south(struct flowParams flow, struct integParams integ, struct flowQuant U);
 Eigen::MatrixXd sig_west(struct flowParams flow, struct integParams integ, struct flowQuant U);
 
-double pressure(struct flowParams flow, double et, double u, double v);
+double RT(struct flowParams flow, double et, double u, double v);
 
 double interp2(const double q1, const double q2);
 double interp4(const double q1, const double q2, const double q3, const double q4);
