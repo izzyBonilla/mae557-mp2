@@ -68,8 +68,8 @@ int main(int argc, char* argv[]) {
 
   // initialize flow quantity matrices
   U.rho = MatrixXd::Constant(integ.ngx,integ.ngy,rho_i);
-  U.x_mom = MatrixXd::Zero(integ.ngx,integ.ngy);    // lid is stationary at start
-  U.y_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
+  U.u = MatrixXd::Zero(integ.ngx,integ.ngy);    // lid is stationary at start
+  U.v = MatrixXd::Zero(integ.ngx,integ.ngy);
   U.et = MatrixXd::Constant(integ.ngx,integ.ngy,et_i);
 
   // stresses
@@ -89,7 +89,7 @@ int main(int argc, char* argv[]) {
   // note convention: y direction is increasing with row index
 
   for(int k = 1; k < integ.ngx-1; ++k) {
-    U.x_mom(k,integ.ngy-2) = flow.uw*sin(flow.omega*integ.dt);
+    U.u(k,integ.ngy-2) = flow.uw*sin(flow.omega*integ.dt);
   }
 
   f_rho = rho_rhs(integ,U);
@@ -99,7 +99,7 @@ int main(int argc, char* argv[]) {
   S.south = sig_south(flow,integ,U);
   S.west = sig_west(flow,integ,U);
 
-  std::cout << U.x_mom << std::endl << S.sig12 << std::endl;
+  std::cout << U.u << std::endl << S.south << std::endl;
   // S.sig2 = sig_diag2(flow,integ, U);
   // S.sig_off = sig_off(flow, integ, U);
 
@@ -112,7 +112,7 @@ Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U) {
 
   MatrixXd f = MatrixXd::Zero(integ.ngx,integ.ngy);
 
-  f = -(integ.cd*(U.x_mom/(2*integ.dx)+U.y_mom/(2*integ.dx)));
+  f = -(integ.cd*((U.u*U.rho)/(2*integ.dx)+(U.v*U.rho)/(2*integ.dx)));
 
   return f;
 }
@@ -126,8 +126,6 @@ Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct f
   // sigma(1/2,1)
 
   MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
-  ArrayXXd u = U.x_mom.array()/U.rho.array(); // get u velocity field
-  ArrayXXd v = U.y_mom.array()/U.rho.array(); // get v velocity field
 
   double press; // placeholder for pressure term
   double mu;    // placeholder for dynamic viscosity term
@@ -142,11 +140,11 @@ Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct f
       rho_w = interp2(U.rho(k,l),U.rho(k-1,l));
       et_w = interp2(U.et(k,l),U.et(k-1,l));
       mu = rho_w*flow.nu; // mu at half gridpoint
-      u_w = interp2(u(k,l),u(k-1,l)); // western u velocity
-      press = pressure(flow,et_w,u_w,v(k,l));
-      v_nw = interp4(v(k-1,l+1),v(k-1,l),v(k,l+1),v(k,l));
-      v_sw = interp4(v(k-1,l),v(k-1,l-1),v(k,l),v(k,l-1));
-      sigma(k,l) = mu*((4/(3*integ.dx))*(u(k,l)-u(k-1,l))-(2/(3*integ.dx))*(v_nw-v_sw)) - press;
+      u_w = interp2(U.u(k,l),U.u(k-1,l)); // western u velocity
+      press = pressure(flow,et_w,u_w,U.v(k,l));
+      v_nw = interp4(U.v(k-1,l+1),U.v(k-1,l),U.v(k,l+1),U.v(k,l));
+      v_sw = interp4(U.v(k-1,l),U.v(k-1,l-1),U.v(k,l),U.v(k,l-1));
+      sigma(k,l) = mu*((4/(3*integ.dx))*(U.u(k,l)-U.u(k-1,l))-(2/(3*integ.dx))*(v_nw-v_sw)) - press;
     }
   }
 
@@ -160,8 +158,6 @@ Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct f
   // sigma(1,1/2)
 
   MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
-  ArrayXXd u = U.x_mom.array()/U.rho.array(); // get u velocity field
-  ArrayXXd v = U.y_mom.array()/U.rho.array(); // get v velocity field
 
   double press; // placeholder for pressure term
   double mu;    // placeholder for dynamic viscosity term
@@ -176,11 +172,11 @@ Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct f
       rho_s = interp2(U.rho(k,l),U.rho(k,l-1));
       et_s = interp2(U.et(k,l),U.et(k,l-1));
       mu = rho_s*flow.nu; // mu at half gridpoint
-      v_s = interp2(v(k,l),v(k,l-1)); // southern v velocity
-      press = pressure(flow,et_s,v_s,u(k,l));
-      u_sw = interp4(u(k,l),u(k,l-1),u(k-1,l-1),u(k-1,l));
-      u_se = interp4(u(k,l),u(k+1,l),u(k+1,l-1),u(k,l-1));
-      sigma(k,l) = mu*((4/(3*integ.dx))*(u(k,l)-u(k-1,l))-(2/(3*integ.dx))*(u_sw-u_se)) - press;
+      v_s = interp2(U.v(k,l),U.v(k,l-1)); // southern v velocity
+      press = pressure(flow,et_s,v_s,U.u(k,l));
+      u_sw = interp4(U.u(k,l),U.u(k,l-1),U.u(k-1,l-1),U.u(k-1,l));
+      u_se = interp4(U.u(k,l),U.u(k+1,l),U.u(k+1,l-1),U.u(k,l-1));
+      sigma(k,l) = mu*((4/(3*integ.dx))*(U.u(k,l)-U.u(k-1,l))-(2/(3*integ.dx))*(u_sw-u_se)) - press;
     }
   }
 
@@ -192,8 +188,6 @@ Eigen::MatrixXd sig_south(struct flowParams flow, struct integParams integ, stru
   // note sigma_12 = sigma_21
 
   MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
-  ArrayXXd u = U.x_mom.array()/U.rho.array();
-  ArrayXXd v = U.y_mom.array()/U.rho.array();
   
   double rho_s;
   double mu;
@@ -204,11 +198,11 @@ Eigen::MatrixXd sig_south(struct flowParams flow, struct integParams integ, stru
     for(int l = 1; l < integ.ngy; ++l) {
       rho_s = interp2(U.rho(k,l),U.rho(k,l-1)); // interpolate density
       mu = rho_s*flow.nu; // calculate mu at this gridpoint
-      v_sw = interp4(v(k,l),v(k-1,l),v(k-1,l-1),v(k,l-1)); // interpolate
-      v_se = interp4(v(k,l),v(k+1,l),v(k+1,l-1),v(k,l-1)); // corner velocities
+      v_sw = interp4(U.v(k,l),U.v(k-1,l),U.v(k-1,l-1),U.v(k,l-1)); // interpolate
+      v_se = interp4(U.v(k,l),U.v(k+1,l),U.v(k+1,l-1),U.v(k,l-1)); // corner velocities
 
       // now integrate
-      sigma(k,l) = mu*((u(k,l)-u(k,l-1))/integ.dy + (v_se-v_sw)/integ.dx);
+      sigma(k,l) = mu*((U.u(k,l)-U.u(k,l-1))/integ.dy + (v_se-v_sw)/integ.dx);
     }
   }
 
@@ -217,8 +211,6 @@ Eigen::MatrixXd sig_south(struct flowParams flow, struct integParams integ, stru
 
 Eigen::MatrixXd sig_west(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
-  ArrayXXd u = U.x_mom.array()/U.rho.array();
-  ArrayXXd v = U.y_mom.array()/U.rho.array();
 
   double rho_w;
   double mu;
@@ -229,10 +221,11 @@ Eigen::MatrixXd sig_west(struct flowParams flow, struct integParams integ, struc
     for(int l = 1; l < integ.ngy-1; ++l) {
       rho_w = interp2(U.rho(k,l),U.rho(k-1,l));
       mu = rho_w*flow.nu;
-      u_nw = interp4(u(k,l),u(k-1,l),u(k-1,l+1),u(k,l+1));
-      u_sw = interp4(u(k,l),u(k,l-1),u(k-1,l-1),u(k-1,l));
+      u_nw = interp4(U.u(k,l),U.u(k-1,l),U.u(k-1,l+1),U.u(k,l+1));
+      u_sw = interp4(U.u(k,l),U.u(k,l-1),U.u(k-1,l-1),U.u(k-1,l));
 
-      sigma(k,l) = mu*((u_nw-u_sw)/integ.dy+(v(k,l)-v(k-1,l))/integ.dx);
+      sigma(k,l) = mu*((u_nw-u_sw)/integ.dy+(U.v(k,l)-U.v(k-1,l))/integ.dx);
+
     }
   }
 

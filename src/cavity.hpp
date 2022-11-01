@@ -31,8 +31,8 @@ struct integParams {
 
 struct flowQuant {
   Eigen::MatrixXd rho;
-  Eigen::MatrixXd x_mom;
-  Eigen::MatrixXd y_mom;
+  Eigen::MatrixXd u;
+  Eigen::MatrixXd v;
   Eigen::MatrixXd et;
 };
 
