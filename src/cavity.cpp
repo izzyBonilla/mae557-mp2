@@ -29,10 +29,10 @@ int main(int argc, char* argv[]) {
     flow.to = atof(argv[4]);
   } else {
     flow.ma = 0.25;
-    integ.nx = 3;
-    integ.ny = 3;
-    integ.nt = 10;
-    flow.to = 10;
+    integ.nx = 100;
+    integ.ny = 100;
+    integ.nt = 500000;
+    flow.to = 1;
   }
 
   // set up flow parameters
@@ -97,7 +97,12 @@ int main(int argc, char* argv[]) {
 
     t = integ.dt*s;
 
-    for(int k = 1; k < integ.ngx-1; ++k) {
+    // boundary conditions and lid
+
+    for(int k = 1; k < integ.ngx-1; ++k) { # TODO
+      for(int l = 1; l < integ.ngy-1; ++l) {
+
+      }
       U.u(k,integ.ngy-2) = flow.uw*sin(flow.omega*t);
     }
 
@@ -122,13 +127,13 @@ int main(int argc, char* argv[]) {
   }
 
   // write density to file
-  std::ofstream arr_file("rho.dat");
-  if(arr_file.is_open()) {
+  std::ofstream rho_file("rho.dat");
+  if(rho_file.is_open()) {
       for(int k = 1; k < integ.ngx-1; ++k) {
         for(int l = 1; k < integ.ngy -1; ++l) {
-          arr_file << U.rho(k,l) << "\t";
+          rho_file << U.rho(k,l) << "\t";
         }
-        arr_file << std::endl;
+        rho_file << std::endl;
       }
   } else {
       std::cout << "Can't write to file rho.dat \n";
@@ -136,13 +141,13 @@ int main(int argc, char* argv[]) {
   }
 
   // write u to file
-  std::ofstream arr_file("u.dat");
-  if(arr_file.is_open()) {
+  std::ofstream u_file("u.dat");
+  if(u_file.is_open()) {
       for(int k = 1; k < integ.ngx-1; ++k) {
         for(int l = 1; k < integ.ngy -1; ++l) {
-          arr_file << U.u(k,l) << "\t";
+          u_file << U.u(k,l) << "\t";
         }
-        arr_file << std::endl;
+        u_file << std::endl;
       }
   } else {
       std::cout << "Can't write to file u.dat \n";
@@ -150,13 +155,13 @@ int main(int argc, char* argv[]) {
   }
 
   // write v to file
-  std::ofstream arr_file("v.dat");
-  if(arr_file.is_open()) {
+  std::ofstream v_file("v.dat");
+  if(v_file.is_open()) {
       for(int k = 1; k < integ.ngx-1; ++k) {
         for(int l = 1; k < integ.ngy -1; ++l) {
-          arr_file << U.v(k,l) << "\t";
+          v_file << U.v(k,l) << "\t";
         }
-        arr_file << std::endl;
+        v_file << std::endl;
       }
   } else {
       std::cout << "Can't write to file v.dat \n";
@@ -164,13 +169,13 @@ int main(int argc, char* argv[]) {
   }
 
   // write et to file
-  std::ofstream arr_file("et.dat");
-  if(arr_file.is_open()) {
+  std::ofstream et_file("et.dat");
+  if(et_file.is_open()) {
       for(int k = 1; k < integ.ngx-1; ++k) {
         for(int l = 1; k < integ.ngy -1; ++l) {
-          arr_file << U.et(k,l) << "\t";
+          et_file << U.et(k,l) << "\t";
         }
-        arr_file << std::endl;
+        et_file << std::endl;
       }
   } else {
       std::cout << "Can't write to file et.dat \n";
