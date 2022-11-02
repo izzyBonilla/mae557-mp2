@@ -85,27 +85,41 @@ int main(int argc, char* argv[]) {
   MatrixXd f_y_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
   MatrixXd f_et = MatrixXd::Zero(integ.ngx,integ.ngy);
 
+  ArrayXXd tmp;
+
   // first step of the lid
   // note convention: x direction is increasing with column index
   // note convention: y direction is increasing with row index
 
-  for(int k = 1; k < integ.ngx-1; ++k) {
-    U.u(k,integ.ngy-2) = flow.uw*sin(flow.omega*integ.dt);
+  double t;
+
+  for(int s = 0; s < integ.nt; ++s) {
+
+    t = integ.dt*s;
+
+    for(int k = 1; k < integ.ngx-1; ++k) {
+      U.u(k,integ.ngy-2) = flow.uw*sin(flow.omega*t);
+    }
+
+    S.sig11 = sig11(flow,integ, U);
+    S.sig22 = sig22(flow,integ, U);
+    S.south = sig_south(flow,integ,U);
+    S.west = sig_west(flow,integ,U);
+
+    f_rho = rho_rhs(integ,U);
+    f_x_mom = x_rhs(flow,integ,U,S);
+    f_y_mom = y_rhs(flow,integ,U,S);
+    f_et = et_rhs(flow,integ,U,S);
+
+    U.rho = U.rho + integ.dt*f_rho;
+    tmp = integ.dt*f_x_mom.array()/U.rho.array();
+    U.u = U.u + tmp.matrix();
+    tmp = integ.dt*f_y_mom.array()/U.rho.array();
+    U.v = U.v + tmp.matrix();
+
+    U.et = U.et + integ.dt*f_et;
+
   }
-
-  f_rho = rho_rhs(integ,U);
-
-  S.sig11 = sig11(flow,integ, U);
-  S.sig22 = sig22(flow,integ, U);
-  S.south = sig_south(flow,integ,U);
-  S.west = sig_west(flow,integ,U);
-
-  f_x_mom = x_rhs(flow,integ,U,S);
-  f_y_mom = y_rhs(flow,integ,U,S);
-
-  std::cout << U.u << std::endl << f_y_mom << std::endl;
-  // S.sig2 = sig_diag2(flow,integ, U);
-  // S.sig_off = sig_off(flow, integ, U);
 
   return 0;
 }
@@ -316,7 +330,7 @@ Eigen::MatrixXd sig_west(struct flowParams flow, struct integParams integ, struc
   return sigma;
 }
 
-double RT(struct flowParams, flow, double et, double u, double v) {
+double RT(struct flowParams flow, double et, double u, double v) {
   // return the value of RT from total energy and velocity
   return (et-0.5*(u*u+v*v))*(flow.gamma-1);
 }

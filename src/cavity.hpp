@@ -49,7 +49,7 @@ struct Interps {
   double west;
   double south;
   double north;
-}
+};
 
 Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U);
 Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
