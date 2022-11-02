@@ -121,6 +121,62 @@ int main(int argc, char* argv[]) {
 
   }
 
+  // write density to file
+  std::ofstream arr_file("rho.dat");
+  if(arr_file.is_open()) {
+      for(int k = 1; k < integ.ngx-1; ++k) {
+        for(int l = 1; k < integ.ngy -1; ++l) {
+          arr_file << U.rho(k,l) << "\t";
+        }
+        arr_file << std::endl;
+      }
+  } else {
+      std::cout << "Can't write to file rho.dat \n";
+      exit(1);
+  }
+
+  // write u to file
+  std::ofstream arr_file("u.dat");
+  if(arr_file.is_open()) {
+      for(int k = 1; k < integ.ngx-1; ++k) {
+        for(int l = 1; k < integ.ngy -1; ++l) {
+          arr_file << U.u(k,l) << "\t";
+        }
+        arr_file << std::endl;
+      }
+  } else {
+      std::cout << "Can't write to file u.dat \n";
+      exit(1);
+  }
+
+  // write v to file
+  std::ofstream arr_file("v.dat");
+  if(arr_file.is_open()) {
+      for(int k = 1; k < integ.ngx-1; ++k) {
+        for(int l = 1; k < integ.ngy -1; ++l) {
+          arr_file << U.v(k,l) << "\t";
+        }
+        arr_file << std::endl;
+      }
+  } else {
+      std::cout << "Can't write to file v.dat \n";
+      exit(1);
+  }
+
+  // write et to file
+  std::ofstream arr_file("et.dat");
+  if(arr_file.is_open()) {
+      for(int k = 1; k < integ.ngx-1; ++k) {
+        for(int l = 1; k < integ.ngy -1; ++l) {
+          arr_file << U.et(k,l) << "\t";
+        }
+        arr_file << std::endl;
+      }
+  } else {
+      std::cout << "Can't write to file et.dat \n";
+      exit(1);
+  }
+
   return 0;
 }
 
