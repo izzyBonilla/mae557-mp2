@@ -34,3 +34,7 @@
 # Extraneous Stuff
 *.jl
 test
+*.slurm
+*.err
+*.dat
+*csv
