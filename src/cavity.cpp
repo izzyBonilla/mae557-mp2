@@ -65,6 +65,11 @@ int main(int argc, char* argv[]) {
   U.et = ArrayXXd::Constant(integ.ngx,integ.ngy,et_i);
 
   // stresses
+  // Note on convention: the stresses are calculated such that 
+  // sig11(k,l) corresponds to sigma_11|k-1/2,l
+  // sig22(k,l) corresponds to sigma_11|k,l-1/2
+  // south(k,l) corresponds to sigma_12|k-1/2,l
+  // west(k,l)  corresponds to sigma_21|k,l-1/2 
   S.sig11 = ArrayXXd::Zero(integ.ngx,integ.ngy);
   S.sig22 = ArrayXXd::Zero(integ.ngx,integ.ngy);
   S.south = ArrayXXd::Zero(integ.ngx,integ.ngy);
@@ -76,8 +81,6 @@ int main(int argc, char* argv[]) {
   ArrayXXd f_y_mom = ArrayXXd::Zero(integ.ngx,integ.ngy);
   ArrayXXd f_et = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
-  ArrayXXd tmp;
-
   // first step of the lid
   // note convention: x direction is increasing with column index
   // note convention: y direction is increasing with row index
@@ -88,9 +91,21 @@ int main(int argc, char* argv[]) {
 
     t = integ.dt*s;
 
-    // boundary conditions and lid
+    // unknowns at cell centers
+    // horizontal wall boundary conditions
     for(int k = 1; k < integ.ngx-1; ++k) {
-      U.u(k,integ.ngy-2) = flow.uw*sin(flow.omega*t);
+      U.u(k,integ.ngy-1) = flow.uw*sin(flow.omega*t)-U.u(k,integ.ngy-2);
+      U.u(k,0) = -U.u(k,1);
+      U.v(k,integ.ngy-1) = -U.v(k,integ.ngy-2);
+      U.v(k,0) = -U.u(k,0);
+    }
+
+    // vertical wall boundary conditions
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      U.u(0,l) = -U.u(1,l); // left wall u velo
+      U.u(integ.ngx-1,l) = -U.u(integ.ngx-2,l); // right wall u velo
+      U.v(0,l) = -U.v(1,l); // left wall u velo
+      U.v(integ.ngx-1,l) = -U.v(integ.ngx-2,l); // right wall v velo 
     }
 
     S.sig11 = sig11(flow,integ, U);
@@ -104,10 +119,8 @@ int main(int argc, char* argv[]) {
     f_et = et_rhs(flow,integ,U,S);
 
     U.rho = U.rho + integ.dt*f_rho;
-    tmp = integ.dt*f_x_mom/U.rho;
-    U.u = U.u + tmp;
-    tmp = integ.dt*f_y_mom/U.rho;
-    U.v = U.v + tmp;
+    U.u = U.u + integ.dt*f_x_mom/U.rho;
+    U.v = U.v + integ.dt*f_y_mom/U.rho;
 
     U.et = U.et + integ.dt*f_et;
 
@@ -283,6 +296,7 @@ Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct f
   double et_w;
   double rho_w;
   double u_w;
+  double v_w;
   double v_nw;
   double v_sw;
 
@@ -292,12 +306,27 @@ Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct f
       et_w = interp2(U.et(k,l),U.et(k-1,l));
       mu = rho_w*flow.nu; // mu at half gridpoint
       u_w = interp2(U.u(k,l),U.u(k-1,l)); // western u velocity
-      press = rho_w*RT(flow,et_w,u_w,U.v(k,l));
+      v_w = interp2(U.v(k,l),U.v(k-1,l)); // western v velocity
+      press = rho_w*RT(flow,et_w,u_w,v_w);
       v_nw = interp4(U.v(k-1,l+1),U.v(k-1,l),U.v(k,l+1),U.v(k,l));
       v_sw = interp4(U.v(k-1,l),U.v(k-1,l-1),U.v(k,l),U.v(k,l-1));
       sigma(k,l) = mu*((4/(3*integ.dx))*(U.u(k,l)-U.u(k-1,l))-(2/(3*integ.dx))*(v_nw-v_sw)) - press;
     }
   }
+
+  // top left corner stress
+  rho_w = interp2(U.rho(1,integ.ngy-2),U.rho(0,integ.ngy-2));
+  et_w = interp2(U.et(1,integ.ngy-2),U.et(0,integ.ngy-2));
+  mu = rho_w*flow.nu;
+  press = rho_w*RT(flow,et_w,0,0);
+  sigma(1,integ.ngy-2) = mu*4/(3*integ.dx)*(U.u(1,integ.ngy-2)-U.u(0,integ.ngy-2))-press;
+
+  // top right corner stress
+  rho_w = interp2(U.rho(integ.ngx-1,integ.ngy-2),U.rho(integ.ngx-2,integ.ngy-2));
+  et_w = interp2(U.et(integ.ngx-1,integ.ngy-2),U.et(integ.ngx-2,integ.ngy-2));
+  mu = rho_w*flow.nu;
+  press = rho_w*RT(flow,et_w,0,0);
+  sigma(integ.ngx-1,integ.ngy-2) = mu*4/(3*integ.dx)*(U.u(integ.ngx-1,integ.ngy-2)-U.u(integ.ngx-2,integ.ngy-2));
 
   return sigma;
 }
@@ -314,6 +343,7 @@ Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct f
   double mu;    // placeholder for dynamic viscosity term
   double et_s;  // interpolated total energy at southern border
   double rho_s; // interpolated density at southern border
+  double u_s;   // interpolated u velocity at southern border
   double v_s;   // interpolated v velocity at southern border
   double u_sw;  // interpolated u velocity at southwestern corner
   double u_se;  // interpolated u velocity at southeastern corner
@@ -323,13 +353,32 @@ Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct f
       rho_s = interp2(U.rho(k,l),U.rho(k,l-1));
       et_s = interp2(U.et(k,l),U.et(k,l-1));
       mu = rho_s*flow.nu; // mu at half gridpoint
+      u_s = interp2(U.u(k,l),U.u(k,l-1)); // southern u velocity
       v_s = interp2(U.v(k,l),U.v(k,l-1)); // southern v velocity
-      press = rho_s*RT(flow,et_s,v_s,U.u(k,l));
+      press = rho_s*RT(flow,et_s,v_s,u_s);
       u_sw = interp4(U.u(k,l),U.u(k,l-1),U.u(k-1,l-1),U.u(k-1,l));
       u_se = interp4(U.u(k,l),U.u(k+1,l),U.u(k+1,l-1),U.u(k,l-1));
-      sigma(k,l) = mu*((4/(3*integ.dx))*(U.u(k,l)-U.u(k-1,l))-(2/(3*integ.dx))*(u_sw-u_se)) - press;
+      sigma(k,l) = mu*((4/(3*integ.dy))*(U.v(k,l)-U.v(k-1,l))-(2/(3*integ.dx))*(u_sw-u_se)) - press;
     }
   }
+
+  // top left corner stress
+  rho_s = interp2(U.rho(1,integ.ngy-1),U.rho(1,integ.ngy-2));
+  et_s = interp2(U.et(1,integ.ngy-1),U.et(1,integ.ngy-2));
+  mu = rho_s*flow.nu;
+  u_s = interp2(U.u(1,integ.ngy-1),U.u(1,integ.ngy-2));
+  v_s = interp2(U.v(1,integ.ngy-1),U.v(1,integ.ngy-2));
+  press = rho_s*RT(flow,et_s,v_s,u_s);
+  sigma(1,integ.ngy-1) = 4*mu/(3*integ.dy)*(U.v(1,integ.ngy-1)-U.v(1,integ.ngy-2))- press;
+
+  // top right corner stress
+  rho_s = interp2(U.rho(1,integ.ngy-1),U.rho(1,integ.ngy-2));
+  et_s = interp2(U.et(1,integ.ngy-1),U.et(1,integ.ngy-2));
+  mu = rho_s*flow.nu;
+  u_s = interp2(U.u(1,integ.ngy-1),U.u(1,integ.ngy-2));
+  v_s = interp2(U.v(1,integ.ngy-1),U.v(1,integ.ngy-2));
+  press = rho_s*RT(flow,et_s,v_s,u_s);
+  sigma(integ.ngx-2,integ.ngy-1) = 4*mu/(3*integ.dy)*(U.v(1,integ.ngy-1)-U.v(1,integ.ngy-2))- press;
 
   return sigma;
 }
@@ -357,6 +406,16 @@ Eigen::ArrayXXd sig_south(struct flowParams flow, struct integParams integ, stru
     }
   }
 
+  // top left corner stress
+  rho_s = interp2(U.rho(1,integ.ngy-2),U.rho(0,integ.ngy-2));
+  mu = rho_s*flow.nu;
+  sigma(1,integ.ngy-2) = mu/integ.dx*(U.v(1,integ.ngy-2),U.v(0,integ.ngy-2));
+
+  // top right corner stress
+  rho_s = interp2(U.rho(integ.ngx-1,integ.ngy-2),U.rho(integ.ngx-2,integ.ngy-2));
+  mu = rho_s*flow.nu;
+  sigma(integ.ngx-1,integ.ngy-2) = mu/integ.dx*(U.v(integ.ngx-1,integ.ngy-2),U.v(integ.ngx-2,integ.ngy-2));
+
   return sigma;
 }
 
@@ -374,11 +433,19 @@ Eigen::ArrayXXd sig_west(struct flowParams flow, struct integParams integ, struc
       mu = rho_w*flow.nu;
       u_nw = interp4(U.u(k,l),U.u(k-1,l),U.u(k-1,l+1),U.u(k,l+1));
       u_sw = interp4(U.u(k,l),U.u(k,l-1),U.u(k-1,l-1),U.u(k-1,l));
-
       sigma(k,l) = mu*((u_nw-u_sw)/integ.dy+(U.v(k,l)-U.v(k-1,l))/integ.dx);
-
     }
   }
+
+  // top left corner stress
+  rho_w = interp2(U.rho(1,integ.ngy-1),U.rho(1,integ.ngy-2));
+  mu = rho_w*flow.nu;
+  sigma(1,integ.ngy-1) = mu/integ.dx*(U.v(1,integ.ngy-1),U.v(1,integ.ngy-2));
+
+  // top left corner stress
+  rho_w = interp2(U.rho(integ.ngx-2,integ.ngy-1),U.rho(integ.ngx-2,integ.ngy-2));
+  mu = rho_w*flow.nu;
+  sigma(integ.ngx-2,integ.ngy-2) = mu/integ.dx*(U.v(integ.ngx-2,integ.ngy-1),U.v(integ.ngx-2,integ.ngy-2));
 
   return sigma;
 }
