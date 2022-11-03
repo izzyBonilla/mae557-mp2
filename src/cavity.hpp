@@ -27,21 +27,20 @@ struct integParams {
   double dx;
   double dy;
   double dt;
-  Eigen::MatrixXd cd;
 };
 
 struct flowQuant {
-  Eigen::MatrixXd rho;
-  Eigen::MatrixXd u;
-  Eigen::MatrixXd v;
-  Eigen::MatrixXd et;
+  Eigen::ArrayXXd rho;
+  Eigen::ArrayXXd u;
+  Eigen::ArrayXXd v;
+  Eigen::ArrayXXd et;
 };
 
 struct Stress {
-  Eigen::MatrixXd sig11;
-  Eigen::MatrixXd sig22;
-  Eigen::MatrixXd south;
-  Eigen::MatrixXd west;
+  Eigen::ArrayXXd sig11;
+  Eigen::ArrayXXd sig22;
+  Eigen::ArrayXXd south;
+  Eigen::ArrayXXd west;
 };
 
 struct Interps {
@@ -51,15 +50,15 @@ struct Interps {
   double north;
 };
 
-Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
-Eigen::MatrixXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
-Eigen::MatrixXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
+Eigen::ArrayXXd rho_rhs(struct integParams integ, struct flowQuant U);
+Eigen::ArrayXXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
+Eigen::ArrayXXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
+Eigen::ArrayXXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 
-Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd sig_south(struct flowParams flow, struct integParams integ, struct flowQuant U);
-Eigen::MatrixXd sig_west(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::ArrayXXd sig_south(struct flowParams flow, struct integParams integ, struct flowQuant U);
+Eigen::ArrayXXd sig_west(struct flowParams flow, struct integParams integ, struct flowQuant U);
 
 double RT(struct flowParams flow, double et, double u, double v);
 

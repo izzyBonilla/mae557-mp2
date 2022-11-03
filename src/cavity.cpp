@@ -53,37 +53,28 @@ int main(int argc, char* argv[]) {
   integ.dx = flow.L/integ.nx;
   integ.dy = flow.L/integ.ny;
   integ.dt = integ.tf/integ.nt;
-  integ.cd = MatrixXd::Zero(integ.ngx,integ.ngy);
-
-  // Central Difference Operator
-  for(int k = 1; k < integ.ngx-1; ++k) {
-    integ.cd(k,k-1) = -1;
-    integ.cd(k,k+1) = 1;
-  }
-  integ.cd(1,0) = 0;
-  integ.cd(integ.ngx-2,integ.ngx-1) = 0;
 
   // caluculate initial density and total energy
   double rho_i = PI/(flow.R*TI);
   double et_i = flow.R*TI/(flow.gamma-1);
 
   // initialize flow quantity matrices
-  U.rho = MatrixXd::Constant(integ.ngx,integ.ngy,rho_i);
-  U.u = MatrixXd::Zero(integ.ngx,integ.ngy);    // lid is stationary at start
-  U.v = MatrixXd::Zero(integ.ngx,integ.ngy);
-  U.et = MatrixXd::Constant(integ.ngx,integ.ngy,et_i);
+  U.rho = ArrayXXd::Constant(integ.ngx,integ.ngy,rho_i);
+  U.u = ArrayXXd::Zero(integ.ngx,integ.ngy);    // lid is stationary at start
+  U.v = ArrayXXd::Zero(integ.ngx,integ.ngy);
+  U.et = ArrayXXd::Constant(integ.ngx,integ.ngy,et_i);
 
   // stresses
-  S.sig11 = MatrixXd::Zero(integ.ngx,integ.ngy);
-  S.sig22 = MatrixXd::Zero(integ.ngx,integ.ngy);
-  S.south = MatrixXd::Zero(integ.ngx,integ.ngy);
-  S.west = MatrixXd::Zero(integ.ngx,integ.ngy);
+  S.sig11 = ArrayXXd::Zero(integ.ngx,integ.ngy);
+  S.sig22 = ArrayXXd::Zero(integ.ngx,integ.ngy);
+  S.south = ArrayXXd::Zero(integ.ngx,integ.ngy);
+  S.west = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   // flow quant rhs vectors
-  MatrixXd f_rho = MatrixXd::Zero(integ.ngx,integ.ngy);
-  MatrixXd f_x_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
-  MatrixXd f_y_mom = MatrixXd::Zero(integ.ngx,integ.ngy);
-  MatrixXd f_et = MatrixXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd f_rho = ArrayXXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd f_x_mom = ArrayXXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd f_y_mom = ArrayXXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd f_et = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   ArrayXXd tmp;
 
@@ -98,11 +89,7 @@ int main(int argc, char* argv[]) {
     t = integ.dt*s;
 
     // boundary conditions and lid
-
-    for(int k = 1; k < integ.ngx-1; ++k) { # TODO
-      for(int l = 1; l < integ.ngy-1; ++l) {
-
-      }
+    for(int k = 1; k < integ.ngx-1; ++k) {
       U.u(k,integ.ngy-2) = flow.uw*sin(flow.omega*t);
     }
 
@@ -117,10 +104,10 @@ int main(int argc, char* argv[]) {
     f_et = et_rhs(flow,integ,U,S);
 
     U.rho = U.rho + integ.dt*f_rho;
-    tmp = integ.dt*f_x_mom.array()/U.rho.array();
-    U.u = U.u + tmp.matrix();
-    tmp = integ.dt*f_y_mom.array()/U.rho.array();
-    U.v = U.v + tmp.matrix();
+    tmp = integ.dt*f_x_mom/U.rho;
+    U.u = U.u + tmp;
+    tmp = integ.dt*f_y_mom/U.rho;
+    U.v = U.v + tmp;
 
     U.et = U.et + integ.dt*f_et;
 
@@ -185,19 +172,24 @@ int main(int argc, char* argv[]) {
   return 0;
 }
 
-Eigen::MatrixXd rho_rhs(struct integParams integ, struct flowQuant U) {
+Eigen::ArrayXXd rho_rhs(struct integParams integ, struct flowQuant U) {
   // given the integrator parameters and required quantities, take
   // one timestep of the momentum equation
 
-  MatrixXd f = MatrixXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
-  f = -(integ.cd*((U.u*U.rho)/(2*integ.dx)+(U.v*U.rho)/(2*integ.dx)));
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      f(k,l) = -(U.rho(k+1,l)*U.u(k+1,l)-U.rho(k-1,l)*U.u(k-1,l))/(2*integ.dx)
+               -(U.rho(k,l+1)*U.v(k,l+1)-U.rho(k,l-1)*U.v(k,l-1))/(2*integ.dy);
+    }
+  }
 
   return f;
 }
 
-Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
-  MatrixXd f = MatrixXd::Zero(integ.ngx,integ.ngy);
+Eigen::ArrayXXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+  ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   for(int k = 1; k < integ.ngx-1; ++k) {
     for(int l = 1; l < integ.ngy-1; ++l) {
@@ -210,8 +202,8 @@ Eigen::MatrixXd x_rhs(struct flowParams flow, struct integParams integ, struct f
   return f;
 }
 
-Eigen::MatrixXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
-  MatrixXd f = MatrixXd::Zero(integ.ngx,integ.ngy);
+Eigen::ArrayXXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+  ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   for(int k = 1; k < integ.ngx-1; ++k) {
     for(int l = 1; l < integ.ngy-1; ++l) {
@@ -224,9 +216,9 @@ Eigen::MatrixXd y_rhs(struct flowParams flow, struct integParams integ, struct f
   return f;
 }
 
-Eigen::MatrixXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+Eigen::ArrayXXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
 
-  MatrixXd f = MatrixXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   struct Interps u_i;
   struct Interps v_i;
@@ -278,13 +270,13 @@ Eigen::MatrixXd et_rhs(struct flowParams flow, struct integParams integ, struct 
   return f;
 }
 
-Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U) {
+Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute 1-direction principal stresses on k,l grid
   // using the following scheme: every k,l index pair corresponds
   // to the stress at the western boundary; i-e sigma(1,1) corresponds to
   // sigma(1/2,1)
 
-  MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd sigma = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   double press; // placeholder for pressure term
   double mu;    // placeholder for dynamic viscosity term
@@ -310,13 +302,13 @@ Eigen::MatrixXd sig11(struct flowParams flow, struct integParams integ, struct f
   return sigma;
 }
 
-Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct flowQuant U) {
+Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute 2-direction principal stresses on k,l grid
   // using the following scheme: every k,l index pair corresponds
   // to the stress at the southern boundary; i-e sigma(1,1) corresponds to
   // sigma(1,1/2)
 
-  MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd sigma = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   double press; // placeholder for pressure term
   double mu;    // placeholder for dynamic viscosity term
@@ -342,11 +334,11 @@ Eigen::MatrixXd sig22(struct flowParams flow, struct integParams integ, struct f
   return sigma;
 }
 
-Eigen::MatrixXd sig_south(struct flowParams flow, struct integParams integ, struct flowQuant U) {
+Eigen::ArrayXXd sig_south(struct flowParams flow, struct integParams integ, struct flowQuant U) {
   // compute off-diagonall stresses on k,l grid 
   // note sigma_12 = sigma_21
 
-  MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+  ArrayXXd sigma = ArrayXXd::Zero(integ.ngx,integ.ngy);
   
   double rho_s;
   double mu;
@@ -368,8 +360,8 @@ Eigen::MatrixXd sig_south(struct flowParams flow, struct integParams integ, stru
   return sigma;
 }
 
-Eigen::MatrixXd sig_west(struct flowParams flow, struct integParams integ, struct flowQuant U) {
-  MatrixXd sigma = MatrixXd::Zero(integ.ngx,integ.ngy);
+Eigen::ArrayXXd sig_west(struct flowParams flow, struct integParams integ, struct flowQuant U) {
+  ArrayXXd sigma = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   double rho_w;
   double mu;
