@@ -4,7 +4,7 @@
 #include <eigen3/Eigen/Dense>
 
 struct flowParams {
-  int re;
+  double re;
   double ma;
   double pr;
   double gamma;

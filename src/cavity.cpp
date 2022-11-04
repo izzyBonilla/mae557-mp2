@@ -14,6 +14,8 @@ using Eigen::ArrayXXd;
 
 int main(int argc, char* argv[]) {  
 
+  const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, "\t", "\n");
+
   struct flowParams flow;
   struct integParams integ;
   struct flowQuant U;
@@ -26,13 +28,13 @@ int main(int argc, char* argv[]) {
     integ.nx = atoi(argv[2]);
     integ.ny = atoi(argv[2]);
     integ.nt = atoi(argv[3]); 
-    flow.to = atof(argv[4]);
+    integ.tf = atof(argv[4]);
   } else {
-    flow.ma = 0.25;
-    integ.nx = 100;
-    integ.ny = 100;
-    integ.nt = 500000;
-    flow.to = 1;
+    flow.ma = 0.025;
+    integ.nx = 25;
+    integ.ny = 25;
+    integ.nt = 100;
+    integ.tf = 0.00001;
   }
 
   // set up flow parameters
@@ -43,13 +45,12 @@ int main(int argc, char* argv[]) {
   flow.uw = flow.ma*sqrt(flow.R*flow.gamma*TI); // wall velocity
   flow.nu = flow.uw*LI/flow.re;                // kinematic viscosity
   flow.L = flow.nu*flow.re/flow.uw;           //! REVISIT LENGTH
-  flow.omega = 2*flow.nu/(pow(flow.L,2));    // frequency
+  flow.omega = 2*flow.nu/(pow(flow.L,2));    // frequency, default 0.1735954
   flow.cp = flow.gamma/(1-flow.gamma)*flow.R;
 
   // set up integrator parameters
   integ.ngx = integ.nx + NGHOST;
   integ.ngy = integ.ny + NGHOST;
-  integ.tf = flow.to/flow.omega;
   integ.dx = flow.L/integ.nx;
   integ.dy = flow.L/integ.ny;
   integ.dt = integ.tf/integ.nt;
@@ -86,6 +87,7 @@ int main(int argc, char* argv[]) {
   // note convention: y direction is increasing with row index
 
   double t;
+  double e_ghost;
 
   for(int s = 0; s < integ.nt; ++s) {
 
@@ -93,11 +95,19 @@ int main(int argc, char* argv[]) {
 
     // unknowns at cell centers
     // horizontal wall boundary conditions
+
+
     for(int k = 1; k < integ.ngx-1; ++k) {
-      U.u(k,integ.ngy-1) = flow.uw*sin(flow.omega*t)-U.u(k,integ.ngy-2);
+      U.u(k,integ.ngy-1) = 2*flow.uw*sin(flow.omega*t)-U.u(k,integ.ngy-2);
       U.u(k,0) = -U.u(k,1);
       U.v(k,integ.ngy-1) = -U.v(k,integ.ngy-2);
       U.v(k,0) = -U.u(k,0);
+
+      e_ghost = flow.R/(flow.gamma-1)*600 + 0.5*(pow(U.u(k,integ.ngy-1),2)+pow(U.v(k,integ.ngy-1),2));
+      U.et(k,integ.ngy-1) = e_ghost - U.et(k,integ.ngy-2);
+
+      e_ghost = flow.R/(flow.gamma-1)*600 + 0.5*(pow(U.u(k,0),2)+pow(U.v(k,0),2));
+      U.et(k,0) = e_ghost - U.et(k,integ.ngy-2);
     }
 
     // vertical wall boundary conditions
@@ -106,12 +116,18 @@ int main(int argc, char* argv[]) {
       U.u(integ.ngx-1,l) = -U.u(integ.ngx-2,l); // right wall u velo
       U.v(0,l) = -U.v(1,l); // left wall u velo
       U.v(integ.ngx-1,l) = -U.v(integ.ngx-2,l); // right wall v velo 
+
+      e_ghost = flow.R/(flow.gamma-1)*600 + 0.5*(pow(U.u(integ.ngx-1,l),2)+pow(U.v(integ.ngx-1,l),2));
+      U.et(integ.ngx-1,l) = e_ghost - U.et(integ.ngx-1,l);
+
+      e_ghost = flow.R/(flow.gamma-1)*600 + 0.5*(pow(U.u(0,l),2)+pow(U.v(0,l),2));
+      U.et(integ.ngx-1,l) = e_ghost - U.et(0,l);
     }
 
     S.sig11 = sig11(flow,integ, U);
-    S.sig22 = sig22(flow,integ, U);
-    S.south = sig_south(flow,integ,U);
-    S.west = sig_west(flow,integ,U);
+    // S.sig22 = sig22(flow,integ, U);
+    // S.south = sig_south(flow,integ,U);
+    // S.west = sig_west(flow,integ,U);
 
     f_rho = rho_rhs(integ,U);
     f_x_mom = x_rhs(flow,integ,U,S);
@@ -122,63 +138,43 @@ int main(int argc, char* argv[]) {
     U.u = U.u + integ.dt*f_x_mom/U.rho;
     U.v = U.v + integ.dt*f_y_mom/U.rho;
 
-    U.et = U.et + integ.dt*f_et;
+    // U.et = U.et + integ.dt*f_et;
 
   }
 
   // write density to file
-  std::ofstream rho_file("rho.dat");
+  std::ofstream rho_file("rho.csv");
   if(rho_file.is_open()) {
-      for(int k = 1; k < integ.ngx-1; ++k) {
-        for(int l = 1; k < integ.ngy -1; ++l) {
-          rho_file << U.rho(k,l) << "\t";
-        }
-        rho_file << std::endl;
-      }
+      rho_file << S.sig11.format(CSVFormat);
   } else {
-      std::cout << "Can't write to file rho.dat \n";
+      std::cout << "Can't write to file rho.csv \n";
       exit(1);
   }
 
   // write u to file
-  std::ofstream u_file("u.dat");
+  std::ofstream u_file("u.csv");
   if(u_file.is_open()) {
-      for(int k = 1; k < integ.ngx-1; ++k) {
-        for(int l = 1; k < integ.ngy -1; ++l) {
-          u_file << U.u(k,l) << "\t";
-        }
-        u_file << std::endl;
-      }
+      u_file << U.u; // .format(CSVFormat);
   } else {
-      std::cout << "Can't write to file u.dat \n";
+      std::cout << "Can't write to file u.csv \n";
       exit(1);
   }
 
   // write v to file
-  std::ofstream v_file("v.dat");
+  std::ofstream v_file("v.csv");
   if(v_file.is_open()) {
-      for(int k = 1; k < integ.ngx-1; ++k) {
-        for(int l = 1; k < integ.ngy -1; ++l) {
-          v_file << U.v(k,l) << "\t";
-        }
-        v_file << std::endl;
-      }
+      v_file << U.v.format(CSVFormat);
   } else {
-      std::cout << "Can't write to file v.dat \n";
+      std::cout << "Can't write to file v.csv \n";
       exit(1);
   }
 
   // write et to file
-  std::ofstream et_file("et.dat");
+  std::ofstream et_file("et.csv");
   if(et_file.is_open()) {
-      for(int k = 1; k < integ.ngx-1; ++k) {
-        for(int l = 1; k < integ.ngy -1; ++l) {
-          et_file << U.et(k,l) << "\t";
-        }
-        et_file << std::endl;
-      }
+      et_file << U.et.format(CSVFormat);
   } else {
-      std::cout << "Can't write to file et.dat \n";
+      std::cout << "Can't write to file et.csv \n";
       exit(1);
   }
 
@@ -326,7 +322,7 @@ Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct f
   et_w = interp2(U.et(integ.ngx-1,integ.ngy-2),U.et(integ.ngx-2,integ.ngy-2));
   mu = rho_w*flow.nu;
   press = rho_w*RT(flow,et_w,0,0);
-  sigma(integ.ngx-1,integ.ngy-2) = mu*4/(3*integ.dx)*(U.u(integ.ngx-1,integ.ngy-2)-U.u(integ.ngx-2,integ.ngy-2));
+  sigma(integ.ngx-1,integ.ngy-2) = mu*4/(3*integ.dx)*(U.u(integ.ngx-1,integ.ngy-2)-U.u(integ.ngx-2,integ.ngy-2))-press;
 
   return sigma;
 }
