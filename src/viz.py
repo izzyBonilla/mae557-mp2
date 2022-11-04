@@ -7,11 +7,11 @@ def main():
 
   print(udat)
 
-  # x,y = np.meshgrid(np.linspace(0,1,20),np.linspace(0,1,20))
+  x,y = np.meshgrid(np.linspace(0,1,20),np.linspace(0,1,20))
 
-  # plt.quiver(x,y,vdat,udat)
+  plt.quiver(x,y,udat,vdat)
 
-  # plt.show()
+  plt.show()
 
 
 if __name__=="__main__":

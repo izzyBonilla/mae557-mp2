@@ -89,39 +89,55 @@ int main(int argc, char* argv[]) {
   double t;
   double e_ghost;
 
+  double wall_velo;
+
   for(int s = 0; s < integ.nt; ++s) {
 
     t = integ.dt*s;
+    wall_velo = flow.uw*sin(flow.omega*t);
 
     // unknowns at cell centers
     // horizontal wall boundary conditions
 
-
+    // handle boundary conditions first
+    // leave the corner values out of this
+    // * top and bottom walls
     for(int k = 1; k < integ.ngx-1; ++k) {
-      U.u(k,integ.ngy-1) = 2*flow.uw*sin(flow.omega*t)-U.u(k,integ.ngy-2);
-      U.u(k,0) = -U.u(k,1);
+      // density
+      U.rho(k,integ.ngy-1) = U.rho(k,integ.ngy-2);
+      U.rho(k,0) = U.rho(k,1);
+
+      // top velocity boundary conditions
+      U.u(k,integ.ngy-1) = 2*wall_velo-U.u(k,integ.ngy-2);
       U.v(k,integ.ngy-1) = -U.v(k,integ.ngy-2);
-      U.v(k,0) = -U.u(k,0);
 
-      e_ghost = flow.R/(flow.gamma-1)*600 + 0.5*(pow(U.u(k,integ.ngy-1),2)+pow(U.v(k,integ.ngy-1),2));
-      U.et(k,integ.ngy-1) = e_ghost - U.et(k,integ.ngy-2);
+      // bottom velocity boundary conditions
+      U.u(k,0) = -U.u(k,1);
+      U.v(k,0) = -U.v(k,1);
 
-      e_ghost = flow.R/(flow.gamma-1)*600 + 0.5*(pow(U.u(k,0),2)+pow(U.v(k,0),2));
-      U.et(k,0) = e_ghost - U.et(k,integ.ngy-2);
+      // energy boundary conditions
+      U.et(k,integ.ngy-1) = 2*(et_i+pow(wall_velo,2))-U.et(k,integ.ngy-2);
+      U.et(k,0) = 2*et_i-U.et(k,1); // bottom
     }
-
-    // vertical wall boundary conditions
+    
+    // * left and right walls
     for(int l = 1; l < integ.ngy-1; ++l) {
-      U.u(0,l) = -U.u(1,l); // left wall u velo
-      U.u(integ.ngx-1,l) = -U.u(integ.ngx-2,l); // right wall u velo
-      U.v(0,l) = -U.v(1,l); // left wall u velo
-      U.v(integ.ngx-1,l) = -U.v(integ.ngx-2,l); // right wall v velo 
 
-      e_ghost = flow.R/(flow.gamma-1)*600 + 0.5*(pow(U.u(integ.ngx-1,l),2)+pow(U.v(integ.ngx-1,l),2));
-      U.et(integ.ngx-1,l) = e_ghost - U.et(integ.ngx-1,l);
+      // density
+      U.rho(integ.ngx-1,l) = U.rho(integ.ngx-2,l);
+      U.rho(0,l) = U.rho(1,l);
 
-      e_ghost = flow.R/(flow.gamma-1)*600 + 0.5*(pow(U.u(0,l),2)+pow(U.v(0,l),2));
-      U.et(integ.ngx-1,l) = e_ghost - U.et(0,l);
+      // right velocity boundary conditions
+      U.u(integ.ngx-1,l) = U.u(integ.ngx-2,l);
+      U.v(integ.ngx-1,l) = U.v(integ.ngx-2,l);
+
+      // left velocity boundary conditions
+      U.u(0,l) = U.u(1,l);
+      U.v(0,l) = U.v(1,l);
+
+      // energy
+      U.et(integ.ngx-1,l) = 2*et_i-U.et(integ.ngx-2,l);
+      U.et(0,l) = 2*et_i-U.et(1,l);
     }
 
     S.sig11 = sig11(flow,integ, U);
@@ -138,7 +154,7 @@ int main(int argc, char* argv[]) {
     U.u = U.u + integ.dt*f_x_mom/U.rho;
     U.v = U.v + integ.dt*f_y_mom/U.rho;
 
-    // U.et = U.et + integ.dt*f_et;
+    U.et = U.et + integ.dt*f_et;
 
   }
 

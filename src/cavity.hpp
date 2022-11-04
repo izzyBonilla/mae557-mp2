@@ -14,7 +14,6 @@ struct flowParams {
   double L;
   double omega;
   double cp;
-  double to;
 };
 
 struct integParams {
