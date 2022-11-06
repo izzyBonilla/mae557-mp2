@@ -2,7 +2,7 @@
 #include <iostream>
 #include <cmath>
 
-#include "cavity.hpp"
+#include "compressible.hpp"
 
 #define TI 300 // 300 Kelvin initial temperature
 #define PI 100000 // 100000 Pa
@@ -31,8 +31,8 @@ int main(int argc, char* argv[]) {
   n.omega = pow(1/n.L,2)*2*n.nu; // * default value of this is 0.173594
 
   // input integrator quantities
-  integ.nt = 10;
-  integ.tf = 1;
+  integ.nt = 2;
+  integ.tf = 0.1;
   integ.dt = integ.tf/integ.nt;
 
   integ.nx = 10;
@@ -67,6 +67,10 @@ int main(int argc, char* argv[]) {
   // non-principal stresses on southern and western cell faces
   S.south = ArrayXXd::Zero(integ.ngx,integ.ngy);
   S.west = ArrayXXd::Zero(integ.ngx,integ.ngy);
+
+
+  // * placeholder
+  ArrayXXd rho_old = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   double t;
   double wall_velo;
@@ -106,12 +110,12 @@ int main(int argc, char* argv[]) {
       U.rho(0,l) = U.rho(1,l);
 
       // right velocity boundary conditions
-      U.u(integ.ngx-1,l) = U.u(integ.ngx-2,l);
-      U.v(integ.ngx-1,l) = U.v(integ.ngx-2,l);
+      U.u(integ.ngx-1,l) = -U.u(integ.ngx-2,l);
+      U.v(integ.ngx-1,l) = -U.v(integ.ngx-2,l);
 
       // left velocity boundary conditions
-      U.u(0,l) = U.u(1,l);
-      U.v(0,l) = U.v(1,l);
+      U.u(0,l) = -U.u(1,l);
+      U.v(0,l) = -U.v(1,l);
 
       // energy
       U.et(integ.ngx-1,l) = 2*et_i-U.et(integ.ngx-2,l);
@@ -119,15 +123,20 @@ int main(int argc, char* argv[]) {
     }
 
     S.sig11 = sig11(n,integ,U);
+    S.sig22 = sig22(n,integ,U);
+    S.south = sig_south(n,integ,U);
+    S.west = sig_west(n,integ,U);
+
+    rho_old = U.rho;
 
     U.rho = U.rho + integ.dt*rho_rhs(integ,U);
-    U.u = U.u + integ.dt*x_rhs(n,integ,U,S);
-    U.v = U.v + integ.dt*y_rhs(n,integ,U,S);
-    U.et = U.et + integ.dt*et_rhs(n,integ,U,S);
+    U.u = (U.u*rho_old + integ.dt*x_rhs(n,integ,U,S))/U.rho;
+    U.v = (U.v*rho_old + integ.dt*y_rhs(n,integ,U,S))/U.rho;
+    U.et = (U.et*rho_old + integ.dt*et_rhs(n,integ,U,S))/U.rho;
 
   }
 
-  std::cout << S.sig11 << std::endl;
+  std::cout << U.u << std::endl;
 
   return 0;
 }
@@ -156,7 +165,7 @@ Eigen::ArrayXXd x_rhs(struct flowParams flow, struct integParams integ, struct f
         - (U.rho(k+1,l)*pow(U.u(k+1,l),2)-U.rho(k-1,l)*pow(U.u(k-1,l),2))/(2*integ.dx)
         - (U.rho(k,l+1)*U.u(k,l+1)*U.v(k,l+1)-U.rho(k,l-1)*U.u(k,l-1)*U.v(k,l-1))/(2*integ.dy)
         + (S.sig11(k+1,l)-S.sig11(k,l))/integ.dx
-        + (S.south(k,l+1)-S.south(k,l-1))/integ.dy;
+        + (S.south(k,l+1)-S.south(k,l))/integ.dy;
     }
   }
 
@@ -164,13 +173,91 @@ Eigen::ArrayXXd x_rhs(struct flowParams flow, struct integParams integ, struct f
 }
 
 Eigen::ArrayXXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+  
   ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      f(k,l) =
+        - (U.rho(k,l+1)*pow(U.v(k,l+1),2)-U.rho(k,l-1)*pow(U.v(k,l-1),2))/(2*integ.dy)
+        - (U.rho(k+1,l)*U.u(k+1,l)*U.v(k+1,l)-U.rho(k-1,l)*U.u(k-1,l)*U.v(k-1,l))/(2*integ.dx)
+        + (S.west(k+1,l)-S.west(k,l))/integ.dx
+        + (S.sig22(k,l+1)-S.sig22(k,l))/integ.dy;
+    }
+  }
 
   return f;
 }
 
 Eigen::ArrayXXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
   ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
+
+  // variables for holding interpolated lambda
+  double l_up;
+  double l_down;
+  double l_left;
+  double l_right;
+
+  // variables for holding interpolated u
+  double u_up;
+  double u_down;
+  double u_left;
+  double u_right;
+
+  // variables for holding interpolated v
+  double v_up;
+  double v_down;
+  double v_left;
+  double v_right;
+
+  // variables for holding temperature values
+  double Tc;
+  double Tkp;
+  double Tkm;
+  double Tlp;
+  double Tlm;
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+
+      // * calculate lambdas as l = rho*cp*nu/Pr
+      l_up = (U.rho(k,l+1)+U.rho(k,l))/2*flow.cp*flow.nu/flow.pr;
+      l_down = (U.rho(k,l-1)+U.rho(k,l))/2*flow.cp*flow.nu/flow.pr;
+      l_left = (U.rho(k-1,l)+U.rho(k,l))/2*flow.cp*flow.nu/flow.pr;
+      l_right = (U.rho(k+1,l)+U.rho(k,l))/2*flow.cp*flow.nu/flow.pr;
+
+      // * interpolate velocities
+      v_up = (U.v(k,l+1)+U.v(k,l))/2;
+      v_down = (U.v(k,l-1)+U.v(k,l))/2;
+      v_left = (U.v(k-1,l)+U.v(k,l))/2;
+      v_right = (U.v(k+1,l)+U.v(k,l))/2;
+  
+      u_up = (U.u(k,l+1)+U.u(k,l))/2;
+      u_down = (U.u(k,l-1)+U.u(k,l))/2;
+      u_left = (U.u(k-1,l)+U.u(k,l))/2;
+      u_right = (U.u(k+1,l)+U.u(k,l))/2;
+
+      // * Calculate Temperatures
+      Tc = temp(flow,U.et(k,l),U.u(k,l),U.v(k,l));
+      Tkp = temp(flow,U.et(k+1,l),U.u(k+1,l),U.v(k+1,l));
+      Tkm = temp(flow,U.et(k-1,l),U.u(k-1,l),U.v(k-1,l));
+      Tlp = temp(flow,U.et(k,l+1),U.u(k,l+1),U.v(k,l+1));
+      Tlm = temp(flow,U.et(k,l-1),U.u(k,l-1),U.v(k,l-1));
+
+      f(k,l) =
+        // * diffusion term
+        - (U.rho(k+1,l)*U.u(k+1,l)*U.et(k+1,l) - (U.rho(k-1,l)*U.u(k-1,l)*U.et(k-1,l)))/(2*integ.dx)
+        - (U.rho(k,l+1)*U.v(k,l+1)*U.et(k,l+1) - (U.rho(k,l-1)*U.v(k,l-1)*U.et(k,l-1)))/(2*integ.dx)
+
+        // * Thermal conductivity
+        + (l_right*(Tkp-Tc)+l_left*(Tkm-Tc))/(integ.dx*integ.dx)
+        + (l_up*(Tlp-Tc)+l_down*(Tlm-Tc))/(integ.dy*integ.dy)
+
+        // * Stresses
+        + (S.sig11(k+1,l)*u_right+S.west(k+1,l)*v_right-S.sig11(k,l)*u_left-S.west(k,l)*v_left)/integ.dx
+        + (S.sig22(k,l+1)*v_up+S.south(k,l+1)*u_up - S.sig22(k,l)*v_down - S.south(k,l)*u_down)/integ.dy;
+    }
+  }
 
   return f;
 }
@@ -191,10 +278,12 @@ Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct f
 
   for(int k = 1; k < integ.ngx; ++k) {
     for(int l = 1; l < integ.ngy-1; ++l) {
+
       interp_rho = (U.rho(k-1,l)+U.rho(k,l))/2; // interpolate rho between k-1 and k to get k-1/2
       mag_v = 0.5*(pow((U.u(k-1,l)+U.u(k,l))/2,2)+pow((U.v(k-1,l)+U.v(k,l))/2,2)); // interp u and v
       rt = ((U.et(k-1,l)+U.et(k,l))/2-mag_v)*(flow.gamma-1); // RT = et(gamma-1) - 0.5*|V|^2 
       pressure = interp_rho*rt; // eos
+
       mu = interp_rho*flow.nu;
       interp_v_plus = (U.v(k,l)+U.v(k-1,l)+U.v(k-1,l+1)+U.v(k,l+1))/4; // top left corner v velo
       interp_v_minus = (U.v(k,l)+U.v(k,l-1)+U.v(k-1,l-1)+U.v(k-1,l))/4; // bottom left corner v velo
@@ -207,13 +296,17 @@ Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct f
 
   // ! handle top corners separately
   // *  top left 
-  sigma(1,integ.ngy-2) = -U.rho(1,integ.ngy-2)*flow.R*TI+U.rho(1,integ.ngy-2)*flow.nu*(
-    4/3*(U.u(1,integ.ngy-2)-U.u(0,integ.ngy-2))/integ.ngx
+  interp_rho = (U.rho(0,integ.ngy-2)+U.rho(1,integ.ngy-2))/2;
+  mu = interp_rho*flow.nu;
+  sigma(1,integ.ngy-2) = -interp_rho*flow.R*TI+mu*(
+    4/3*(U.u(1,integ.ngy-2)-U.u(0,integ.ngy-2))/integ.dx
   );
 
   // * top right
-  sigma(integ.ngx-2,integ.ngy-2) = -U.rho(integ.ngx-2,integ.ngy-2)*flow.R*TI+U.rho(integ.ngx-2,integ.ngy-2)*flow.nu*(
-    4/3*(U.u(integ.ngx-1,integ.ngy-2)-U.u(integ.ngx-2,integ.ngy-2))/integ.ngx
+  interp_rho = (U.rho(integ.ngx-2,integ.ngy-2)+U.rho(integ.ngx-1,integ.ngy-2))/2;
+  mu = interp_rho*flow.nu;
+  sigma(integ.ngx-1,integ.ngy-2) = -interp_rho*flow.R*TI+mu*(
+    4/3*(U.u(integ.ngx-1,integ.ngy-2)-U.u(integ.ngx-2,integ.ngy-2))/integ.dx
   );
 
   return sigma;
@@ -230,6 +323,31 @@ Eigen::ArrayXXd sig_south(struct flowParams flow, struct integParams integ, stru
 
   ArrayXXd sigma = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
+  double interp_rho;
+  double mu;
+
+  double interp_v_plus;
+  double interp_v_minus;
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy; ++l) {
+      interp_rho = (U.rho(k,l-1)+U.rho(k,l))/2;
+      mu = interp_rho*flow.nu;
+
+      interp_v_plus = (U.v(k,l)+U.v(k,l-1)+U.v(k-1,l-1)+U.v(k-1,l))/4;
+      interp_v_minus = (U.v(k,l)+U.v(k+1,l)+U.v(k+1,l-1)+U.v(k,l-1))/4;
+
+      sigma(k,l) = mu*((U.u(k,l)-U.u(k,l-1))/integ.dy+(interp_v_plus-interp_v_minus)/integ.dx);
+    }
+  }
+
+  // * top left corner
+  sigma(1,integ.ngy-1) = mu*(U.u(1,integ.ngy-1)-U.u(1,integ.ngy-2))/integ.dy;
+
+  //* top right corner
+  sigma(integ.ngx-2,integ.ngy-1) = mu*(U.u(integ.ngx-2,integ.ngy-1)-U.u(integ.ngx-2,integ.ngy-2))/integ.dy;
+
+
   return sigma;
 }
 
@@ -237,11 +355,50 @@ Eigen::ArrayXXd sig_west(struct flowParams flow, struct integParams integ, struc
 
   ArrayXXd sigma = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
-  // for(int k = 1; k < integ.ngx-1; ++k) {
-  //   for(int l = 1; l < integ.ngy; ++l) {
+  double interp_rho;
+  double mu;
 
-  //   }
-  // }
+  double interp_u_plus;
+  double interp_u_minus;
+
+  for(int k = 1; k < integ.ngx; ++k) {
+    for(int l = 1; l < integ.ngy-1; ++l) {
+      interp_rho = (U.rho(k-1,l)+U.rho(k,l))/2;
+      mu = interp_rho*flow.nu;
+      interp_u_plus = (U.u(k,l)+U.u(k-1,l)+U.u(k-1,l+1)+U.u(k,l+1))/4;
+      interp_u_minus = (U.u(k,l)+U.u(k,l-1)+U.u(k-1,l-1)+U.u(k-1,l))/4;
+
+      sigma(k,l) = mu*((interp_u_plus-interp_u_minus)/integ.dy+(U.v(k,l)-U.v(k-1,l))/integ.dx);
+    }
+  }
+
+  // ! handle top corners separately
+
+  // * top left
+  interp_rho = (U.rho(0,integ.ngy-2)+U.rho(1,integ.ngy-2))/2;
+  mu = interp_rho*flow.nu;
+  sigma(1,integ.ngy-2) = mu*(U.v(1,integ.ngy-2)-U.v(0,integ.ngy-2))/integ.dx;
+
+  // * top right
+  interp_rho = (U.rho(integ.ngx-1,integ.ngy-2)+U.rho(integ.ngx-2,integ.ngy-2))/2;
+  mu = interp_rho*flow.nu;
+  sigma(integ.ngx-1,integ.ngy-2) = (U.v(integ.ngx-1,integ.ngy-2)-U.v(integ.ngx-2,integ.ngy-2))/integ.dx;
+
 
   return sigma;
+}
+
+double temp(struct flowParams flow, double et, double u, double v) {
+
+  // utility function for calculating the temperature at a point given a total
+  // energy and velocity
+
+  // et = 1/(gamma-1)*RT + 0.5*|V|^2
+  // => (et-0.5*|V|^2)*(gamma-1)/R = T
+
+  double T;
+
+  T = (flow.gamma-1)/flow.R*(et-0.5*(u*u+v*v));
+
+  return T;
 }

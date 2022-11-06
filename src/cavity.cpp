@@ -116,8 +116,11 @@ int main(int argc, char* argv[]) {
       U.v(k,0) = -U.v(k,1);
 
       // energy boundary conditions
-      U.et(k,integ.ngy-1) = 2*(et_i+pow(wall_velo,2))-U.et(k,integ.ngy-2);
-      U.et(k,0) = 2*et_i-U.et(k,1); // bottom
+      U.et(k,integ.ngy-1) = (flow.R*TI-RT(flow,U.et(k,integ.ngy-2),U.u(k,integ.ngy-2),U.v(k,integ.ngy-2)))/(flow.gamma-1)
+                            + 0.5*(pow(U.u(k,integ.ngy-1),2)+pow(U.v(k,integ.ngy-1),2));
+
+      U.et(k,0) = (flow.R*TI-RT(flow,U.et(k,1),U.u(k,1),U.v(k,1)))/(flow.gamma-1)
+                            + 0.5*(pow(U.u(k,0),2)+pow(U.v(k,0),2)); // bottom
     }
     
     // * left and right walls
@@ -128,16 +131,19 @@ int main(int argc, char* argv[]) {
       U.rho(0,l) = U.rho(1,l);
 
       // right velocity boundary conditions
-      U.u(integ.ngx-1,l) = U.u(integ.ngx-2,l);
-      U.v(integ.ngx-1,l) = U.v(integ.ngx-2,l);
+      U.u(integ.ngx-1,l) = -U.u(integ.ngx-2,l);
+      U.v(integ.ngx-1,l) = -U.v(integ.ngx-2,l);
 
       // left velocity boundary conditions
-      U.u(0,l) = U.u(1,l);
-      U.v(0,l) = U.v(1,l);
+      U.u(0,l) = -U.u(1,l);
+      U.v(0,l) = -U.v(1,l);
 
       // energy
-      U.et(integ.ngx-1,l) = 2*et_i-U.et(integ.ngx-2,l);
-      U.et(0,l) = 2*et_i-U.et(1,l);
+      U.et(integ.ngx-1,l) = (flow.R*TI-RT(flow,U.et(integ.ngx-2,l),U.u(integ.ngx-2,l),U.v(integ.ngx-2,l)))/(flow.gamma-1)
+                            + 0.5*(pow(U.u(integ.ngx-1,l),2)+pow(U.v(integ.ngx-1,l),2));
+      
+      U.et(0,l) = (flow.R*TI-RT(flow,U.et(1,l),U.u(1,l),U.v(1,l)))/(flow.gamma-1)
+                  + 0.5*(pow(U.u(0,l),2)+pow(U.v(0,l),2));
     }
 
     S.sig11 = sig11(flow,integ, U);
@@ -154,7 +160,7 @@ int main(int argc, char* argv[]) {
     U.u = U.u + integ.dt*f_x_mom/U.rho;
     U.v = U.v + integ.dt*f_y_mom/U.rho;
 
-    U.et = U.et + integ.dt*f_et;
+    // U.et = U.et + integ.dt*f_et;
 
   }
 
