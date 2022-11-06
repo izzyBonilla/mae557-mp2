@@ -94,7 +94,6 @@ int main(int argc, char* argv[]) {
   for(int s = 0; s < integ.nt; ++s) {
 
     t = s*integ.dt;
-    std::cout << t << std::endl;
     wall_velo = n.uw*sin(n.omega*t);
 
     // handle boundary conditions first
