@@ -45,9 +45,10 @@ int main(int argc, char* argv[]) {
   n.omega = pow(1/n.L,2)*2*n.nu; // * default value of this is 0.173594
 
   // input integrator quantities
-  integ.nt = 1000000;
-  integ.tf = 0.1;
-  integ.dt = integ.tf/integ.nt;
+  // integ.nt = 1000000;
+  integ.tf = 60;
+  integ.dt = 0.0000001;
+  integ.nt = integ.tf/integ.dt;
 
   integ.nx = 150;
   integ.ngx = integ.nx + NGHOST;
