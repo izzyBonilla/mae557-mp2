@@ -7,10 +7,13 @@
 #define TI 300 // 300 Kelvin initial temperature
 #define PI 100000 // 100000 Pa
 #define NGHOST 2
+#define MA0 0.025 // default mach
 
 using Eigen::ArrayXXd;
 
 int main(int argc, char* argv[]) {
+
+  const static Eigen::IOFormat CSVFormat(Eigen::FullPrecision, Eigen::DontAlignCols, ",", "\n");
 
   // define structs to carry important quantitites
   struct flowParams n; // parameters defining flow like Re and Ma
@@ -18,26 +21,37 @@ int main(int argc, char* argv[]) {
   struct flowQuant U; // flow quantities: density, u velocity, v velocity, total energy
   struct Stress S; // stress grids
 
+  if(argc == 2) {
+    n.ma = atof(argv[1]);
+  } else if (argc == 1) {
+    n.ma = MA0;
+  } else {
+    std::cout << "Please either input mach number or no arguments for Ma = 0.025";
+    exit(1);
+  }
+
+
   // input flow quantities
-  n.L = 1;      // TODO: Length should be variable in the future to allow for different mach
-  n.ma = 0.025; // TODO: Mach will eventually be commandline input
   n.re = 100;
   n.pr = 0.7;
   n.gamma = 1.4;
   n.R = 287;
-  n.uw = n.ma*sqrt(n.gamma*n.R*TI);
+  double a = sqrt(n.gamma*n.R*TI);
+  n.nu = MA0*a/n.re;
+  n.uw = n.ma*a;
+  n.L = n.re*n.nu/n.uw;
   n.nu = n.uw*n.L/n.re;
   n.cp = n.gamma/(n.gamma-1)*n.R;
   n.omega = pow(1/n.L,2)*2*n.nu; // * default value of this is 0.173594
 
   // input integrator quantities
-  integ.nt = 2;
+  integ.nt = 1000000;
   integ.tf = 0.1;
   integ.dt = integ.tf/integ.nt;
 
-  integ.nx = 10;
+  integ.nx = 150;
   integ.ngx = integ.nx + NGHOST;
-  integ.ny = 10;
+  integ.ny = 150;
   integ.ngy = integ.ny + NGHOST;
 
   integ.dx = n.L/integ.nx;
@@ -73,12 +87,14 @@ int main(int argc, char* argv[]) {
   ArrayXXd rho_old = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   double t;
+  double T_minus;
   double wall_velo;
 
   // time integration
   for(int s = 0; s < integ.nt; ++s) {
 
     t = s*integ.dt;
+    std::cout << t << std::endl;
     wall_velo = n.uw*sin(n.omega*t);
 
     // handle boundary conditions first
@@ -136,7 +152,41 @@ int main(int argc, char* argv[]) {
 
   }
 
-  std::cout << U.u << std::endl;
+    // write density to file
+  std::ofstream rho_file("rho.csv");
+  if(rho_file.is_open()) {
+      rho_file << U.rho.format(CSVFormat);
+  } else {
+      std::cout << "Can't write to file rho.csv \n";
+      exit(1);
+  }
+
+  // write u to file
+  std::ofstream u_file("u.csv");
+  if(u_file.is_open()) {
+      u_file << U.u.format(CSVFormat);
+  } else {
+      std::cout << "Can't write to file u.csv \n";
+      exit(1);
+  }
+
+  // write v to file
+  std::ofstream v_file("v.csv");
+  if(v_file.is_open()) {
+      v_file << U.v.format(CSVFormat);
+  } else {
+      std::cout << "Can't write to file v.csv \n";
+      exit(1);
+  }
+
+  // write et to file
+  std::ofstream et_file("et.csv");
+  if(et_file.is_open()) {
+      et_file << U.et.format(CSVFormat);
+  } else {
+      std::cout << "Can't write to file et.csv \n";
+      exit(1);
+  }
 
   return 0;
 }
@@ -280,8 +330,8 @@ Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct f
     for(int l = 1; l < integ.ngy-1; ++l) {
 
       interp_rho = (U.rho(k-1,l)+U.rho(k,l))/2; // interpolate rho between k-1 and k to get k-1/2
-      mag_v = 0.5*(pow((U.u(k-1,l)+U.u(k,l))/2,2)+pow((U.v(k-1,l)+U.v(k,l))/2,2)); // interp u and v
-      rt = ((U.et(k-1,l)+U.et(k,l))/2-mag_v)*(flow.gamma-1); // RT = et(gamma-1) - 0.5*|V|^2 
+      mag_v = pow((U.u(k-1,l)+U.u(k,l))/2,2)+pow((U.v(k-1,l)+U.v(k,l))/2,2); // interp u and v
+      rt = ((U.et(k-1,l)+U.et(k,l))/2-mag_v/2)*(flow.gamma-1); // RT = (et - 0.5*|V|^2)*(gamma-1) 
       pressure = interp_rho*rt; // eos
 
       mu = interp_rho*flow.nu;
@@ -322,8 +372,41 @@ Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct f
   double mag_v;
   double mu;
 
-  double interp_v_plus;
-  double interp_v_minus;
+  double interp_u_plus;
+  double interp_u_minus;
+
+  for(int k = 1; k < integ.ngx-1; ++k) {
+    for(int l = 1; l < integ.ngy; ++l) {
+      interp_rho = (U.rho(k,l)+U.rho(k,l-1))/2;
+      mu = interp_rho*flow.nu;
+      mag_v = pow((U.u(k,l-1)+U.u(k,l))/2,2)+pow((U.v(k,l-1)+U.v(k,l))/2,2); // interp u and v
+      rt = ((U.et(k,l-1)+U.et(k,l))/2-mag_v/2)*(flow.gamma-1);
+
+      pressure = interp_rho*rt;
+
+      interp_u_plus = (U.u(k,l)+U.u(k+1,l)+U.u(k+1,l-1)+U.u(k,l-1))/4;
+      interp_u_minus = (U.u(k,l)+U.u(k,l-1)+U.u(k-1,l-1)+U.u(k-1,l))/4;
+
+      sigma(k,l) = -pressure + mu * (
+        4/3*(U.v(k,l)-U.v(k,l-1))/integ.dy - 2/3*(interp_u_plus-interp_u_minus)/integ.dx
+      );
+
+    }
+  }
+
+  // * top left corner
+  interp_rho = (U.rho(1,integ.ngy-1)+U.rho(1,integ.ngy-2))/2;
+  mu = interp_rho*flow.nu;
+  sigma(1,integ.ngy-1) = -interp_rho*flow.R*TI+mu*(
+    4/3*(U.v(1,integ.ngy-1)-U.v(1,integ.ngy-2))/integ.dy
+  );
+
+  // * top right corner
+
+  interp_rho = (U.rho(integ.ngx-2,integ.ngy-1)+U.rho(integ.ngx-2,integ.ngy-2))/2;
+  sigma(integ.ngx-2,integ.ngy-1) = -interp_rho*flow.R*TI+mu*(
+    4/3*(U.v(integ.ngx-2,integ.ngy-1)-U.v(integ.ngx-2,integ.ngy-2))/integ.dy
+  );
 
   return sigma;
 }
