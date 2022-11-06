@@ -316,6 +316,15 @@ Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct f
 
   ArrayXXd sigma = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
+  double interp_rho;
+  double pressure;
+  double rt;
+  double mag_v;
+  double mu;
+
+  double interp_v_plus;
+  double interp_v_minus;
+
   return sigma;
 }
 
@@ -342,9 +351,13 @@ Eigen::ArrayXXd sig_south(struct flowParams flow, struct integParams integ, stru
   }
 
   // * top left corner
+  interp_rho = (U.rho(1,integ.ngy-1)+U.rho(1,integ.ngy-2))/2;
+  mu = interp_rho*flow.nu;
   sigma(1,integ.ngy-1) = mu*(U.u(1,integ.ngy-1)-U.u(1,integ.ngy-2))/integ.dy;
 
   //* top right corner
+  interp_rho = (U.rho(integ.ngx-2,integ.ngy-1)+U.rho(integ.ngx-2,integ.ngy-2))/2;
+  mu = interp_rho*flow.nu;
   sigma(integ.ngx-2,integ.ngy-1) = mu*(U.u(integ.ngx-2,integ.ngy-1)-U.u(integ.ngx-2,integ.ngy-2))/integ.dy;
 
 
