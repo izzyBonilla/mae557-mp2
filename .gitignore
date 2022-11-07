@@ -38,5 +38,5 @@ test
 *.err
 *.dat
 *csv
-
+compressible
 .vscode/
