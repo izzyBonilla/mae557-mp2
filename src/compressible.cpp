@@ -45,9 +45,11 @@ int main(int argc, char* argv[]) {
   n.omega = pow(1/n.L,2)*2*n.nu; // * default value of this is 0.173594
 
   // input integrator quantities
-  integ.tf = round(10/n.omega);
+  integ.tf = std::round(10/n.omega*100.0)/100.0;
   integ.dt = 0.0000001;
   integ.nt = integ.tf/integ.dt;
+
+  std::cout << integ.tf << std::endl;
 
   integ.nx = 125;
   integ.ngx = integ.nx + NGHOST;
