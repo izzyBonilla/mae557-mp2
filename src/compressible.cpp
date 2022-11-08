@@ -153,6 +153,10 @@ int main(int argc, char* argv[]) {
 
   }
 
+  // Temperature post-process
+
+  U.et = (n.gamma-1)/n.R*(U.et-0.5*(U.u*U.u+U.v*U.v));
+
     // write density to file
   std::ofstream rho_file("rho.csv");
   if(rho_file.is_open()) {
