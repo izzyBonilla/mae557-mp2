@@ -49,7 +49,8 @@ int main(int argc, char* argv[]) {
   integ.dt = 0.00000001;
   integ.nt = integ.tf/integ.dt;
 
-  std::cout << integ.tf << std::endl;
+  std::cout << "tf = " << "\t" << integ.tf << std::endl;
+  std::cout << "L = " << "\t" << n.L << std::endl;
 
   integ.nx = 125;
   integ.ngx = integ.nx + NGHOST;
