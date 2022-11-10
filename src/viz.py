@@ -22,13 +22,13 @@ def main():
   t = axs[0,1].imshow(Tdat)
   fig.colorbar(t, ax=axs[0,1])
 
-  axs[1,0].set_title("X velocity [m/s]")
+  axs[1,0].set_title("U velocity [m/s]")
   axs[1,0].set_xlabel("X [m]")
   axs[1,0].set_ylabel("Y [m]")
   u = axs[1,0].imshow(udat)
   fig.colorbar(u, ax=axs[1,0])
 
-  axs[1,1].set_title("U velocity [m/s]")
+  axs[1,1].set_title("V velocity [m/s]")
   axs[1,1].set_xlabel("X [m]")
   axs[1,1].set_ylabel("Y [m]")
   v = axs[1,1].imshow(vdat)

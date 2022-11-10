@@ -45,8 +45,8 @@ int main(int argc, char* argv[]) {
   n.omega = pow(1/n.L,2)*2*n.nu; // * default value of this is 0.173594
 
   // input integrator quantities
-  integ.tf = std::round(10/n.omega*100.0)/100.0;
-  integ.dt = 0.0000001;
+  integ.tf = std::round(2/n.omega*100.0)/100.0;
+  integ.dt = 0.00000001;
   integ.nt = integ.tf/integ.dt;
 
   std::cout << integ.tf << std::endl;
@@ -115,8 +115,9 @@ int main(int argc, char* argv[]) {
       U.v(k,0) = -U.v(k,1);
 
       // energy boundary conditions
-      U.et(k,integ.ngy-1) = 2*(et_i+pow(wall_velo,2))-U.et(k,integ.ngy-2);
-      U.et(k,0) = 2*et_i-U.et(k,1); // bottom
+      U.et(k,integ.ngy-1) = (2*TI-temp(n,U.et(k,integ.ngy-2),U.u(k,integ.ngy-2),U.v(k,integ.ngy-2)))*n.R/(n.gamma-1) +
+        0.5*(pow(U.u(k,integ.ngy-1),2)+pow(U.v(k,integ.ngy-1),2));
+      U.et(k,0) = (2*TI-temp(n,U.et(k,1),U.u(k,1),U.v(k,1)))*n.R/(n.gamma-1)+0.5*(pow(U.u(k,0),2)+pow(U.v(k,0),2)); // bottom
     }
     
     // * left and right walls
@@ -135,8 +136,10 @@ int main(int argc, char* argv[]) {
       U.v(0,l) = -U.v(1,l);
 
       // energy
-      U.et(integ.ngx-1,l) = 2*et_i-U.et(integ.ngx-2,l);
-      U.et(0,l) = 2*et_i-U.et(1,l);
+      U.et(integ.ngx-1,l) = n.R/(n.gamma-1)*(2*TI-temp(n,U.et(integ.ngx-2,l),U.u(integ.ngx-2,l),U.v(integ.ngx-2,l))) +
+        0.5*(pow(U.u(integ.ngx-1,l),2)+pow(U.v(integ.ngx-1,l),2));
+      U.et(0,l) = n.R/(n.gamma-1)*(2*TI-temp(n,U.et(1,l),U.u(1,l),U.v(1,l))) +
+        0.5*(pow(U.u(0,l),2)+pow(U.v(0,l),2));
     }
 
     S.sig11 = sig11(n,integ,U);
