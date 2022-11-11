@@ -45,16 +45,17 @@ int main(int argc, char* argv[]) {
   n.omega = pow(1/n.L,2)*2*n.nu; // * default value of this is 0.173594
 
   // input integrator quantities
-  integ.tf = 0.1;
-  integ.dt = 0.00001;
+  integ.tf = std::round(10/n.omega*100.0)/100.0;
+  integ.dt = 0.000005;
   integ.nt = integ.tf/integ.dt;
 
-  std::cout << "tf = " << "\t" << integ.tf << std::endl;
-  std::cout << "L = " << "\t" << n.L << std::endl;
+  std::cout << "tf = " << integ.tf << std::endl;
+  std::cout << "L = " << n.L << std::endl;
+  std::cout << "Uw = " << n.uw << std::endl;
 
-  integ.nx = 125;
+  integ.nx = 50;
   integ.ngx = integ.nx + NGHOST;
-  integ.ny = 125;
+  integ.ny = 50;
   integ.ngy = integ.ny + NGHOST;
 
   integ.dx = n.L/integ.nx;

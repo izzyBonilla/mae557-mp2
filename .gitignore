@@ -37,7 +37,8 @@ test
 *.slurm
 *.err
 *.dat
-*csv
+*.csv
 compressible
 .vscode/
 scripts/
+*.png
