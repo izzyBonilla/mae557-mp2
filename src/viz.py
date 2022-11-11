@@ -9,9 +9,9 @@ def main():
 
   fig, axs = plt.subplots(nrows=2,ncols=2, figsize=(12,12))
 
-  L = 0.25
-  ny = 50 
-  nx = 50
+  L = 0.03125
+  ny = 40
+  nx = 40
 
   x,y = np.meshgrid(np.linspace(0,L,nx),np.linspace(0,L,ny))
 

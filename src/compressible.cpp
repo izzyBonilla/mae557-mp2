@@ -46,16 +46,16 @@ int main(int argc, char* argv[]) {
 
   // input integrator quantities
   integ.tf = std::round(10/n.omega*100.0)/100.0;
-  integ.dt = 0.000005;
+  integ.dt = 0.0000001;
   integ.nt = integ.tf/integ.dt;
 
   std::cout << "tf = " << integ.tf << std::endl;
   std::cout << "L = " << n.L << std::endl;
   std::cout << "Uw = " << n.uw << std::endl;
 
-  integ.nx = 50;
+  integ.nx = 40;
   integ.ngx = integ.nx + NGHOST;
-  integ.ny = 50;
+  integ.ny = 40;
   integ.ngy = integ.ny + NGHOST;
 
   integ.dx = n.L/integ.nx;
