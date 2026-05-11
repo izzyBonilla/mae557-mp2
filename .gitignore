@@ -42,3 +42,5 @@ compressible
 .vscode/
 scripts/
 *.png
+
+CLAUDE.md
