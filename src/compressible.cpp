@@ -49,6 +49,10 @@ int main(int argc, char* argv[]) {
   integ.dt = 0.0000001;
   integ.nt = integ.tf/integ.dt;
 
+  #ifdef NTEST
+    integ.nt = NTEST;
+  #endif
+
   std::cout << "tf = " << integ.tf << std::endl;
   std::cout << "L = " << n.L << std::endl;
   std::cout << "Uw = " << n.uw << std::endl;
@@ -202,12 +206,26 @@ int main(int argc, char* argv[]) {
 }
 
 
+Eigen::ArrayXXd rho_rhs_eigen(struct integParams integ, struct flowQuant U) {
+  ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
+
+  int k,l;
+  int nx = integ.nx, ny = integ.ny;
+
+  f.block(1,1,nx,ny) =
+    -(U.rho.block(2,1,nx,ny)*U.u.block(2,1,nx,ny)
+    - U.rho.block(0,1,nx,ny)*U.u.block(0,1,nx,ny)) / (2*integ.dx)
+    -(U.rho.block(1,2,nx,ny)*U.v.block(1,2,nx,ny)
+    - U.rho.block(1,0,nx,ny)*U.v.block(1,0,nx,ny)) / (2*integ.dy);
+
+  return f;
+}
+
 Eigen::ArrayXXd rho_rhs(struct integParams integ, struct flowQuant U) {
   ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   int k,l;
 
-  #pragma omp parallel for private(k) collapse(2)
   for(l = 1; l < integ.ngx-1; ++l) {
     for(k = 1; k < integ.ngx-1; ++k) {
       f(k,l) =
@@ -224,7 +242,6 @@ Eigen::ArrayXXd x_rhs(struct flowParams flow, struct integParams integ, struct f
 
   int k,l;
 
-  #pragma omp parallel for private(k) collapse(2)
   for(l = 1; l < integ.ngy-1; ++l) {
     for(k = 1; k < integ.ngx-1; ++k) {
       f(k,l) =
@@ -244,7 +261,6 @@ Eigen::ArrayXXd y_rhs(struct flowParams flow, struct integParams integ, struct f
 
   int k,l;
 
-  #pragma omp parallel for private(k) collapse(2)
   for(l = 1; l < integ.ngy-1; ++l) {
     for(k = 1; k < integ.ngx-1; ++k) {
       f(k,l) =
@@ -288,8 +304,6 @@ Eigen::ArrayXXd et_rhs(struct flowParams flow, struct integParams integ, struct 
 
   int k,l;
 
-  #pragma omp parallel for private(k,l_up,l_down,l_left, l_right, u_up, u_down, u_left) \
-  private(u_right, v_up, v_down, v_left, v_right, Tc, Tkp, Tkm, Tlp, Tlm) collapse(2)
   for(l = 1; l < integ.ngy-1; ++l) {
     for(k = 1; k < integ.ngx-1; ++k) {
 
@@ -320,7 +334,7 @@ Eigen::ArrayXXd et_rhs(struct flowParams flow, struct integParams integ, struct 
       f(k,l) =
         // * diffusion term
         - (U.rho(k+1,l)*U.u(k+1,l)*U.et(k+1,l) - (U.rho(k-1,l)*U.u(k-1,l)*U.et(k-1,l)))/(2*integ.dx)
-        - (U.rho(k,l+1)*U.v(k,l+1)*U.et(k,l+1) - (U.rho(k,l-1)*U.v(k,l-1)*U.et(k,l-1)))/(2*integ.dx)
+        - (U.rho(k,l+1)*U.v(k,l+1)*U.et(k,l+1) - (U.rho(k,l-1)*U.v(k,l-1)*U.et(k,l-1)))/(2*integ.dy)
 
         // * Thermal conductivity
         + (l_right*(Tkp-Tc)+l_left*(Tkm-Tc))/(integ.dx*integ.dx)
@@ -351,7 +365,6 @@ Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct f
 
   int k,l;
 
-  #pragma omp parallel for private(k,interp_rho,pressure,rt,mag_v,mu,interp_v_plus,interp_v_minus) collapse(2)
   for(l = 1; l < integ.ngy-1; ++l) {
     for(k = 1; k < integ.ngx; ++k) {
 
@@ -365,7 +378,7 @@ Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct f
       interp_v_minus = (U.v(k,l)+U.v(k,l-1)+U.v(k-1,l-1)+U.v(k-1,l))/4; // bottom left corner v velo
 
       sigma(k,l) = -pressure + mu * (
-        4/3*(U.u(k,l)-U.u(k-1,l))/integ.dx - 2/3*(interp_v_plus-interp_v_minus)/integ.dy
+        4.0/3.0*(U.u(k,l)-U.u(k-1,l))/integ.dx - 2.0/3.0*(interp_v_plus-interp_v_minus)/integ.dy
       );
     }
   }
@@ -375,14 +388,14 @@ Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct f
   interp_rho = (U.rho(0,integ.ngy-2)+U.rho(1,integ.ngy-2))/2;
   mu = interp_rho*flow.nu;
   sigma(1,integ.ngy-2) = -interp_rho*flow.R*TI+mu*(
-    4/3*(U.u(1,integ.ngy-2)-U.u(0,integ.ngy-2))/integ.dx
+    4.0/3.0*(U.u(1,integ.ngy-2)-U.u(0,integ.ngy-2))/integ.dx
   );
 
   // * top right
   interp_rho = (U.rho(integ.ngx-2,integ.ngy-2)+U.rho(integ.ngx-1,integ.ngy-2))/2;
   mu = interp_rho*flow.nu;
   sigma(integ.ngx-1,integ.ngy-2) = -interp_rho*flow.R*TI+mu*(
-    4/3*(U.u(integ.ngx-1,integ.ngy-2)-U.u(integ.ngx-2,integ.ngy-2))/integ.dx
+    4.0/3.0*(U.u(integ.ngx-1,integ.ngy-2)-U.u(integ.ngx-2,integ.ngy-2))/integ.dx
   );
 
   return sigma;
@@ -403,7 +416,6 @@ Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct f
 
   int k,l;
 
-  #pragma omp parallel for private(k,interp_rho,pressure,rt,mag_v,mu,interp_u_plus,interp_u_minus) collapse(2)
   for(l = 1; l < integ.ngy; ++l) {
     for(k = 1; k < integ.ngx-1; ++k) {
       interp_rho = (U.rho(k,l)+U.rho(k,l-1))/2;
@@ -417,7 +429,7 @@ Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct f
       interp_u_minus = (U.u(k,l)+U.u(k,l-1)+U.u(k-1,l-1)+U.u(k-1,l))/4;
 
       sigma(k,l) = -pressure + mu * (
-        4/3*(U.v(k,l)-U.v(k,l-1))/integ.dy - 2/3*(interp_u_plus-interp_u_minus)/integ.dx
+        4.0/3.0*(U.v(k,l)-U.v(k,l-1))/integ.dy - 2.0/3.0*(interp_u_plus-interp_u_minus)/integ.dx
       );
 
     }
@@ -427,14 +439,15 @@ Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct f
   interp_rho = (U.rho(1,integ.ngy-1)+U.rho(1,integ.ngy-2))/2;
   mu = interp_rho*flow.nu;
   sigma(1,integ.ngy-1) = -interp_rho*flow.R*TI+mu*(
-    4/3*(U.v(1,integ.ngy-1)-U.v(1,integ.ngy-2))/integ.dy
+    4.0/3.0*(U.v(1,integ.ngy-1)-U.v(1,integ.ngy-2))/integ.dy
   );
 
   // * top right corner
 
   interp_rho = (U.rho(integ.ngx-2,integ.ngy-1)+U.rho(integ.ngx-2,integ.ngy-2))/2;
+  mu = interp_rho*flow.nu;
   sigma(integ.ngx-2,integ.ngy-1) = -interp_rho*flow.R*TI+mu*(
-    4/3*(U.v(integ.ngx-2,integ.ngy-1)-U.v(integ.ngx-2,integ.ngy-2))/integ.dy
+    4.0/3.0*(U.v(integ.ngx-2,integ.ngy-1)-U.v(integ.ngx-2,integ.ngy-2))/integ.dy
   );
 
   return sigma;
@@ -452,7 +465,6 @@ Eigen::ArrayXXd sig_south(struct flowParams flow, struct integParams integ, stru
 
   int k,l;
 
-  #pragma omp for private(k,interp_rho,mu,interp_v_plus,interp_v_minus) collapse(2)
   for(l = 1; l < integ.ngy; ++l) {
     for(k = 1; k < integ.ngx-1; ++k) {
       interp_rho = (U.rho(k,l-1)+U.rho(k,l))/2;
@@ -491,7 +503,6 @@ Eigen::ArrayXXd sig_west(struct flowParams flow, struct integParams integ, struc
 
   int k,l;
 
-  #pragma omp parallel for private(k,interp_rho,mu,interp_u_plus,interp_u_minus) collapse(2)
   for(int l = 1; l < integ.ngy-1; ++l) {
     for(int k = 1; k < integ.ngx; ++k) {
       interp_rho = (U.rho(k-1,l)+U.rho(k,l))/2;
@@ -513,7 +524,7 @@ Eigen::ArrayXXd sig_west(struct flowParams flow, struct integParams integ, struc
   // * top right
   interp_rho = (U.rho(integ.ngx-1,integ.ngy-2)+U.rho(integ.ngx-2,integ.ngy-2))/2;
   mu = interp_rho*flow.nu;
-  sigma(integ.ngx-1,integ.ngy-2) = (U.v(integ.ngx-1,integ.ngy-2)-U.v(integ.ngx-2,integ.ngy-2))/integ.dx;
+  sigma(integ.ngx-1,integ.ngy-2) = mu*(U.v(integ.ngx-1,integ.ngy-2)-U.v(integ.ngx-2,integ.ngy-2))/integ.dx;
 
 
   return sigma;

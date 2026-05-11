@@ -1,7 +1,7 @@
 #ifndef COMPRESSIBLE_HPP_
 #define COMPRESSIBLE_HPP_
 
-#include <eigen3/Eigen/Dense>
+#include "../eigen/Eigen/Dense"
 
 struct flowParams {
   double re;
