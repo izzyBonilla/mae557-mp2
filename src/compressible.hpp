@@ -49,9 +49,12 @@ struct Interps {
   double north;
 };
 
-Eigen::ArrayXXd rho_rhs(struct integParams integ, struct flowQuant U);
+Eigen::ArrayXXd rho_rhs_eigen(struct integParams integ, struct flowQuant U);
+Eigen::ArrayXXd rho_rhs_iter(struct integParams integ, struct flowQuant U);
 Eigen::ArrayXXd x_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
+Eigen::ArrayXXd x_rhs_eigen(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 Eigen::ArrayXXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
+Eigen::ArrayXXd y_rhs_eigen(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 Eigen::ArrayXXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 
 Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U);

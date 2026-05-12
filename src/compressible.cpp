@@ -155,9 +155,9 @@ int main(int argc, char* argv[]) {
 
     rho_old = U.rho;
 
-    U.rho = U.rho + integ.dt*rho_rhs(integ,U);
-    U.u = (U.u*rho_old + integ.dt*x_rhs(n,integ,U,S))/U.rho;
-    U.v = (U.v*rho_old + integ.dt*y_rhs(n,integ,U,S))/U.rho;
+    U.rho = U.rho + integ.dt*rho_rhs_iter(integ,U);
+    U.u = (U.u*rho_old + integ.dt*x_rhs_eigen(n,integ,U,S))/U.rho;
+    U.v = (U.v*rho_old + integ.dt*y_rhs_eigen(n,integ,U,S))/U.rho;
     U.et = (U.et*rho_old + integ.dt*et_rhs(n,integ,U,S))/U.rho;
 
   }
@@ -221,7 +221,7 @@ Eigen::ArrayXXd rho_rhs_eigen(struct integParams integ, struct flowQuant U) {
   return f;
 }
 
-Eigen::ArrayXXd rho_rhs(struct integParams integ, struct flowQuant U) {
+Eigen::ArrayXXd rho_rhs_iter(struct integParams integ, struct flowQuant U) {
   ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
   int k,l;
@@ -251,6 +251,23 @@ Eigen::ArrayXXd x_rhs(struct flowParams flow, struct integParams integ, struct f
         + (S.south(k,l+1)-S.south(k,l))/integ.dy;
     }
   }
+
+  return f;
+}
+
+Eigen::ArrayXXd x_rhs_eigen(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+  ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
+
+  int nx = integ.nx, ny = integ.ny;
+
+  f.block(1,1,nx,ny) =
+    -(U.rho.block(2,1,nx,ny) * U.u.block(2,1,nx,ny) * U.u.block(2,1,nx,ny)
+    - U.rho.block(0,1,nx,ny) * U.u.block(0,1,nx,ny) * U.u.block(0,1,nx,ny)) / (2*integ.dx)
+    -(U.rho.block(1,2,nx,ny) * U.u.block(1,2,nx,ny) * U.v.block(1,2,nx,ny)
+    - U.rho.block(1,0,nx,ny) * U.u.block(1,0,nx,ny) * U.v.block(1,0,nx,ny)) / (2*integ.dy)
+    + (S.sig11.block(2,1,nx,ny) - S.sig11.block(1,1,nx,ny)) / integ.dx
+    + (S.south.block(1,2,nx,ny) - S.south.block(1,1,nx,ny)) / integ.dy;
+
 
   return f;
 }
