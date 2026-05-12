@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
     U.rho = U.rho + integ.dt*rho_rhs_iter(integ,U);
     U.u = (U.u*rho_old + integ.dt*x_rhs_eigen(n,integ,U,S))/U.rho;
     U.v = (U.v*rho_old + integ.dt*y_rhs_eigen(n,integ,U,S))/U.rho;
-    U.et = (U.et*rho_old + integ.dt*et_rhs(n,integ,U,S))/U.rho;
+    U.et = (U.et*rho_old + integ.dt*et_rhs_eigen(n,integ,U,S))/U.rho;
 
   }
 
@@ -291,6 +291,22 @@ Eigen::ArrayXXd y_rhs(struct flowParams flow, struct integParams integ, struct f
   return f;
 }
 
+Eigen::ArrayXXd y_rhs_eigen(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+  ArrayXXd f = ArrayXXd::Zero(integ.ngx, integ.ngy);
+
+  int nx = integ.nx, ny = integ.ny;
+
+  f.block(1,1,nx,ny) =
+    -(U.rho.block(1,2,nx,ny) * U.v.block(1,2,nx,ny) * U.v.block(1,2,nx,ny)
+    - U.rho.block(1,0,nx,ny) * U.v.block(1,0,nx,ny) * U.v.block(1,0,nx,ny)) / (2*integ.dy)
+    -(U.rho.block(2,1,nx,ny) * U.u.block(2,1,nx,ny) * U.v.block(2,1,nx,ny)
+    - U.rho.block(0,1,nx,ny) * U.u.block(0,1,nx,ny) * U.v.block(0,1,nx,ny)) / (2*integ.dx)
+    + (S.west.block(2,1,nx,ny) - S.west.block(1,1,nx,ny)) / integ.dx
+    + (S.sig22.block(1,2,nx,ny) - S.sig22.block(1,1,nx,ny)) / integ.dy;
+
+  return f;
+}
+
 Eigen::ArrayXXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
   ArrayXXd f = ArrayXXd::Zero(integ.ngx,integ.ngy);
 
@@ -366,6 +382,54 @@ Eigen::ArrayXXd et_rhs(struct flowParams flow, struct integParams integ, struct 
   return f;
 }
 
+
+Eigen::ArrayXXd et_rhs_eigen(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S) {
+  ArrayXXd f = ArrayXXd::Zero(integ.ngx, integ.ngy);
+
+  int nx = integ.nx, ny = integ.ny;
+  const double gm1_R = (flow.gamma - 1) / flow.R;
+  const double lam = flow.cp * flow.nu / flow.pr;
+
+  // Temperature at each stencil point: T = (γ-1)/R · (et - ½|V|²)
+  ArrayXXd Tc  = gm1_R * (U.et.block(1,1,nx,ny) - 0.5*(U.u.block(1,1,nx,ny).square() + U.v.block(1,1,nx,ny).square()));
+  ArrayXXd Txp = gm1_R * (U.et.block(2,1,nx,ny) - 0.5*(U.u.block(2,1,nx,ny).square() + U.v.block(2,1,nx,ny).square()));
+  ArrayXXd Txm = gm1_R * (U.et.block(0,1,nx,ny) - 0.5*(U.u.block(0,1,nx,ny).square() + U.v.block(0,1,nx,ny).square()));
+  ArrayXXd Typ = gm1_R * (U.et.block(1,2,nx,ny) - 0.5*(U.u.block(1,2,nx,ny).square() + U.v.block(1,2,nx,ny).square()));
+  ArrayXXd Tym = gm1_R * (U.et.block(1,0,nx,ny) - 0.5*(U.u.block(1,0,nx,ny).square() + U.v.block(1,0,nx,ny).square()));
+
+  // Face-averaged thermal conductivity λ = ρ·cp·ν/Pr at each face
+  ArrayXXd lam_xp = (U.rho.block(2,1,nx,ny) + U.rho.block(1,1,nx,ny)) * (lam/2);
+  ArrayXXd lam_xm = (U.rho.block(0,1,nx,ny) + U.rho.block(1,1,nx,ny)) * (lam/2);
+  ArrayXXd lam_yp = (U.rho.block(1,2,nx,ny) + U.rho.block(1,1,nx,ny)) * (lam/2);
+  ArrayXXd lam_ym = (U.rho.block(1,0,nx,ny) + U.rho.block(1,1,nx,ny)) * (lam/2);
+
+  // Face-averaged velocities for stress power term
+  ArrayXXd u_xp = (U.u.block(2,1,nx,ny) + U.u.block(1,1,nx,ny)) / 2;
+  ArrayXXd u_xm = (U.u.block(0,1,nx,ny) + U.u.block(1,1,nx,ny)) / 2;
+  ArrayXXd u_yp = (U.u.block(1,2,nx,ny) + U.u.block(1,1,nx,ny)) / 2;
+  ArrayXXd u_ym = (U.u.block(1,0,nx,ny) + U.u.block(1,1,nx,ny)) / 2;
+  ArrayXXd v_xp = (U.v.block(2,1,nx,ny) + U.v.block(1,1,nx,ny)) / 2;
+  ArrayXXd v_xm = (U.v.block(0,1,nx,ny) + U.v.block(1,1,nx,ny)) / 2;
+  ArrayXXd v_yp = (U.v.block(1,2,nx,ny) + U.v.block(1,1,nx,ny)) / 2;
+  ArrayXXd v_ym = (U.v.block(1,0,nx,ny) + U.v.block(1,1,nx,ny)) / 2;
+
+  f.block(1,1,nx,ny) =
+    // convection
+    -(U.rho.block(2,1,nx,ny)*U.u.block(2,1,nx,ny)*U.et.block(2,1,nx,ny)
+    - U.rho.block(0,1,nx,ny)*U.u.block(0,1,nx,ny)*U.et.block(0,1,nx,ny)) / (2*integ.dx)
+    -(U.rho.block(1,2,nx,ny)*U.v.block(1,2,nx,ny)*U.et.block(1,2,nx,ny)
+    - U.rho.block(1,0,nx,ny)*U.v.block(1,0,nx,ny)*U.et.block(1,0,nx,ny)) / (2*integ.dy)
+    // thermal conduction
+    + (lam_xp*(Txp-Tc) + lam_xm*(Txm-Tc)) / (integ.dx*integ.dx)
+    + (lam_yp*(Typ-Tc) + lam_ym*(Tym-Tc)) / (integ.dy*integ.dy)
+    // stress power
+    + (S.sig11.block(2,1,nx,ny)*u_xp + S.west.block(2,1,nx,ny)*v_xp
+     - S.sig11.block(1,1,nx,ny)*u_xm - S.west.block(1,1,nx,ny)*v_xm) / integ.dx
+    + (S.sig22.block(1,2,nx,ny)*v_yp + S.south.block(1,2,nx,ny)*u_yp
+     - S.sig22.block(1,1,nx,ny)*v_ym - S.south.block(1,1,nx,ny)*u_ym) / integ.dy;
+
+  return f;
+}
 
 Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U) {
 

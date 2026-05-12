@@ -56,6 +56,7 @@ Eigen::ArrayXXd x_rhs_eigen(struct flowParams flow, struct integParams integ, st
 Eigen::ArrayXXd y_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 Eigen::ArrayXXd y_rhs_eigen(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 Eigen::ArrayXXd et_rhs(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
+Eigen::ArrayXXd et_rhs_eigen(struct flowParams flow, struct integParams integ, struct flowQuant U, struct Stress S);
 
 Eigen::ArrayXXd sig11(struct flowParams flow, struct integParams integ, struct flowQuant U);
 Eigen::ArrayXXd sig22(struct flowParams flow, struct integParams integ, struct flowQuant U);
